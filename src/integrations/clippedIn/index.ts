@@ -9,7 +9,7 @@ type SignInOptions = {
 
 export const ClippedIn = {
   auth: {
-    signInWithOAuth: async (provider: "google" | "apple" | "microsoft", opts?: SignInOptions) => {
+    signInWithOAuth: async (provider: "google" | "apple" | "azure", opts?: SignInOptions) => {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {

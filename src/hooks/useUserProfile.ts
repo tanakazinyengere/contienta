@@ -36,12 +36,12 @@ export function useUserProfile() {
 
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("is_pro,is_premium")
+        .select("is_pro")
         .eq("user_id", session.user.id)
         .maybeSingle();
 
-      const isPremium = Boolean(profileData?.is_premium);
-      const isPro = isGodMode || Boolean(profileData?.is_pro) || isPremium;
+      const isPremium = isGodMode || Boolean(profileData?.is_pro);
+      const isPro = isPremium;
 
       setProfile({
         isPro,
@@ -68,11 +68,10 @@ export function useUserProfile() {
           },
           (payload) => {
             const updated = payload.new as any;
-            const nextIsPremium = Boolean(updated?.is_premium);
-            const nextIsPro = isGodMode || Boolean(updated?.is_pro) || nextIsPremium;
+            const nextIsPremium = isGodMode || Boolean(updated?.is_pro);
             setProfile((prev) => ({
               ...prev,
-              isPro: nextIsPro,
+              isPro: nextIsPremium,
               isPremium: nextIsPremium,
             }));
           },

@@ -26,7 +26,7 @@ const Admin = () => {
     try {
       const [{ count: users }, { count: premium }, { count: saved }] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("is_premium", true),
+        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("is_pro", true),
         supabase.from("saved_posts").select("id", { count: "exact", head: true }),
       ]);
       const conversionRate = users > 0 ? Math.round((premium / users) * 100) : 0;
@@ -66,17 +66,29 @@ const Admin = () => {
     }
     setSaving(true);
     try {
+      // Look up user_id from display_name match (email column not exposed); fallback: requires admin to know user id.
+      // Simpler approach: update by display_name if matches; otherwise toast a friendly notice.
+      const { data: matches, error: lookupError } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .ilike("display_name", `%${grantEmail.trim()}%`)
+        .limit(1);
+      if (lookupError) throw lookupError;
+      if (!matches || matches.length === 0) {
+        toast.error("No matching user found. Try the user's display name.");
+        return;
+      }
       const { error } = await supabase
         .from("profiles")
-        .update({ is_premium: true })
-        .eq("email", grantEmail.trim().toLowerCase());
+        .update({ is_pro: true })
+        .eq("user_id", matches[0].user_id);
       if (error) throw error;
-      toast.success("Premium flag granted.");
+      toast.success("Pro access granted.");
       setGrantEmail("");
       fetchMetrics();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to grant premium");
+      toast.error("Failed to grant Pro");
     } finally {
       setSaving(false);
     }

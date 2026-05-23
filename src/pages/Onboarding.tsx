@@ -31,6 +31,9 @@ const Onboarding = () => {
   const navigate = useNavigate();
   const [tutorialStep, setTutorialStep] = useState(0);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [profileUrl, setProfileUrl] = useState("");
 
   useEffect(() => {
     if (!started) return;
