@@ -308,7 +308,49 @@ const ProfileTester = () => {
             )}
           </Button>
         </div>
+
+        {/* Real SSI Score: open LinkedIn + upload screenshot */}
+        <div className="max-w-xl mx-auto glass rounded-2xl p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">
+              Want your <span className="text-foreground font-medium">real</span> SSI score? Open LinkedIn's official page, screenshot it, and upload it here — our AI reads the numbers and coaches you.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              asChild
+              variant="outline"
+              className="flex-1 h-10 rounded-xl press-effect"
+            >
+              <a href="https://www.linkedin.com/sales/ssi" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open my LinkedIn SSI
+              </a>
+            </Button>
+            <label className="flex-1">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleScreenshot(f);
+                  e.target.value = "";
+                }}
+              />
+              <span className={`flex items-center justify-center h-10 px-4 rounded-xl bg-accent text-accent-foreground font-semibold cursor-pointer press-effect text-sm ${isAnalyzingScreenshot ? "opacity-70 pointer-events-none" : "hover:bg-accent/90"}`}>
+                {isAnalyzingScreenshot ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Reading screenshot...</>
+                ) : (
+                  <><Upload className="w-4 h-4 mr-2" /> Upload SSI screenshot</>
+                )}
+              </span>
+            </label>
+          </div>
+        </div>
       </section>
+
 
       {/* Results */}
       <AnimatePresence>
