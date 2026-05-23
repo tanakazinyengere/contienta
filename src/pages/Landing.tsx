@@ -269,8 +269,7 @@ const Landing = () => {
               Professional Authority Platform
             </div>
             <h1 className="text-fluid-3xl font-extrabold font-display leading-tight">
-              Build Your <span className="text-gradient">Executive Presence</span> on
-              <br className="hidden sm:block" /> LinkedIn
+              Own Your <span className="text-gradient">Influence</span>.
             </h1>
           </div>
 
@@ -281,8 +280,8 @@ const Landing = () => {
             transition={{ delay: 0.3, duration: 0.6, ease: "easeOut" }}
             className="space-y-6"
           >
-            <p className="text-fluid-fluid-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Elevate your professional brand with AI-powered content generation, strategic distribution, and comprehensive authority audits designed for executive-level personal branding.
+            <p className="text-fluid-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              The AI content engine and authority audit built for LinkedIn operators who want to post sharper, faster, and on-brand — every single day.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
               <Button
