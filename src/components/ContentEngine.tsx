@@ -1,3 +1,4 @@
+import { useState, useCallback } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Loader2 } from "lucide-react";

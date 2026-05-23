@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link2, Play, Loader2, TrendingUp, Target, MessageSquare, Users, ChevronDown, ChevronUp, Lightbulb, ExternalLink, Zap, Heart, Info, Sparkles } from "lucide-react";
+import { Link2, Play, Loader2, TrendingUp, Target, MessageSquare, Users, ChevronDown, ChevronUp, Lightbulb, ExternalLink, Zap, Heart, Info, Sparkles, Upload, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -120,8 +120,60 @@ const PillarCard = ({ pillar, index }: { pillar: PillarScore; index: number }) =
 const ProfileTester = () => {
   const [profileUrl, setProfileUrl] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isAnalyzingScreenshot, setIsAnalyzingScreenshot] = useState(false);
   const [result, setResult] = useState<SSIResult | null>(null);
   const { isPremium } = useUserProfile();
+
+  const buildResultFromAI = (data: any, fallbackUrl: string, fallbackHandle: string) => {
+    const pillars: PillarScore[] = [
+      { name: "Professional Brand", score: data.pillars.professionalBrand.score, maxScore: 25, icon: <Target className="w-4 h-4" />, description: "How you show up on LinkedIn", suggestions: data.pillars.professionalBrand.suggestions, details: data.pillars.professionalBrand.details },
+      { name: "Find the Right People", score: data.pillars.findPeople.score, maxScore: 25, icon: <Users className="w-4 h-4" />, description: "Your network quality & targeting", suggestions: data.pillars.findPeople.suggestions, details: data.pillars.findPeople.details },
+      { name: "Engage with Insights", score: data.pillars.engageInsights.score, maxScore: 25, icon: <MessageSquare className="w-4 h-4" />, description: "Your content & comment game", suggestions: data.pillars.engageInsights.suggestions, details: data.pillars.engageInsights.details },
+      { name: "Build Relationships", score: data.pillars.buildRelationships.score, maxScore: 25, icon: <TrendingUp className="w-4 h-4" />, description: "How well you nurture connections", suggestions: data.pillars.buildRelationships.suggestions, details: data.pillars.buildRelationships.details },
+    ];
+    const totalScore = pillars.reduce((sum, p) => sum + p.score, 0);
+    const levelInfo = getLevelInfo(totalScore);
+    setResult({
+      totalScore,
+      level: levelInfo.level,
+      levelDescription: levelInfo.description,
+      pillars,
+      overallSuggestions: data.overallSuggestions || [],
+      quickWins: data.quickWins || [],
+      kindWords: data.kindWords || [],
+      profileUrl: fallbackUrl,
+      profileHandle: data.profileHandle || fallbackHandle,
+    });
+  };
+
+  const handleScreenshot = useCallback(async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+    setIsAnalyzingScreenshot(true);
+    setResult(null);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const { data, error } = await supabase.functions.invoke("analyze-ssi-screenshot", {
+        body: { imageBase64: base64 },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      buildResultFromAI(data, "uploaded-screenshot", "you");
+      toast.success("Screenshot analyzed!");
+    } catch (err: any) {
+      console.error("Screenshot analysis failed:", err);
+      toast.error(err.message || "Failed to analyze screenshot");
+    } finally {
+      setIsAnalyzingScreenshot(false);
+    }
+  }, []);
 
   const handleAnalyze = useCallback(async () => {
     let trimmed = profileUrl.trim();
@@ -256,7 +308,49 @@ const ProfileTester = () => {
             )}
           </Button>
         </div>
+
+        {/* Real SSI Score: open LinkedIn + upload screenshot */}
+        <div className="max-w-xl mx-auto glass rounded-2xl p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">
+              Want your <span className="text-foreground font-medium">real</span> SSI score? Open LinkedIn's official page, screenshot it, and upload it here — our AI reads the numbers and coaches you.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              asChild
+              variant="outline"
+              className="flex-1 h-10 rounded-xl press-effect"
+            >
+              <a href="https://www.linkedin.com/sales/ssi" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open my LinkedIn SSI
+              </a>
+            </Button>
+            <label className="flex-1">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleScreenshot(f);
+                  e.target.value = "";
+                }}
+              />
+              <span className={`flex items-center justify-center h-10 px-4 rounded-xl bg-accent text-accent-foreground font-semibold cursor-pointer press-effect text-sm ${isAnalyzingScreenshot ? "opacity-70 pointer-events-none" : "hover:bg-accent/90"}`}>
+                {isAnalyzingScreenshot ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Reading screenshot...</>
+                ) : (
+                  <><Upload className="w-4 h-4 mr-2" /> Upload SSI screenshot</>
+                )}
+              </span>
+            </label>
+          </div>
+        </div>
       </section>
+
 
       {/* Results */}
       <AnimatePresence>

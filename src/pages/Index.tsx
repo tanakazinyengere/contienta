@@ -131,7 +131,7 @@ const Index = () => {
             transition={{ duration: 0.2 }}
             className="flex-1"
           >
-            <ProfileTester isPro={userProfile.isPro} />
+            <ProfileTester />
           </motion.div>
         )}
 

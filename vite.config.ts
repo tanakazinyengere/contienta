@@ -7,7 +7,7 @@ const testConfig = {
   test: {
     environment: "jsdom",
     globals: true,
-    coverage: { provider: "v8", reporter: ["text", "json", "html"] },
+    coverage: { provider: "v8" as const, reporter: ["text", "json", "html"] },
   },
 };
 
