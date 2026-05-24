@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ClippedIn } from "@/integrations/clippedIn/index";
+import { lovable } from "@/integrations/lovable/index";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -17,43 +17,46 @@ const Login = () => {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate("/");
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) navigate("/app");
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate("/");
+      if (session) navigate("/app");
     });
     return () => subscription.unsubscribe();
   }, [navigate]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {
-      toast.error("Please fill in all fields");
-      return;
-    }
+    if (!email.trim() || !password.trim()) { toast.error("Fill in email and password"); return; }
+    if (password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
     setIsLoading(true);
     try {
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: { emailRedirectTo: `${window.location.origin}/app` },
         });
         if (error) throw error;
-        toast.success("Check your email to confirm your account!");
+        toast.success("Check your inbox to confirm your email — then sign in.");
+        setIsSignUp(false);
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-        if (error) throw error;
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) {
+          if (error.message?.toLowerCase().includes("invalid")) {
+            toast.error("Wrong email or password. Try again, or sign up if you're new.");
+          } else if (error.message?.toLowerCase().includes("confirm")) {
+            toast.error("Confirm your email first — check your inbox.");
+          } else {
+            toast.error(error.message);
+          }
+          return;
+        }
         toast.success("Welcome back!");
       }
     } catch (err: any) {
-      toast.error(err.message || "Authentication failed");
+      toast.error(err.message || "Something went wrong");
     } finally {
       setIsLoading(false);
     }
@@ -62,13 +65,12 @@ const Login = () => {
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
     try {
-      const result = await ClippedIn.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: `${window.location.origin}/app`,
       });
       if (result.error) {
-        toast.error("Google sign-in failed. Please try again.");
+        toast.error(`Google sign-in failed: ${result.error.message || "try again"}`);
       }
-      if (result.redirected) return;
     } catch (err: any) {
       toast.error(err.message || "Google sign-in failed");
     } finally {
@@ -78,32 +80,17 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-background">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-sm space-y-6"
-      >
-        {/* Logo */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mx-auto">
-            <span className="text-primary-foreground font-display font-black text-2xl">C.</span>
+          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center mx-auto">
+            <span className="text-primary-foreground font-display font-black text-xl">C</span>
           </div>
-          <h1 className="text-2xl font-black font-display text-gradient brand-logo">ClippedIn</h1>
-          <p className="text-sm text-muted-foreground">
-            {isSignUp ? "Create your account" : "Welcome back"}
-          </p>
+          <h1 className="text-2xl font-bold font-display text-foreground">ClippedIn</h1>
+          <p className="text-sm text-muted-foreground">{isSignUp ? "Create your account" : "Welcome back"}</p>
         </div>
 
-        {/* Google Login */}
-        <Button
-          variant="outline"
-          onClick={handleGoogleLogin}
-          disabled={isGoogleLoading}
-          className="w-full h-12 glass border-border text-foreground font-medium"
-        >
-          {isGoogleLoading ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
+        <Button variant="outline" onClick={handleGoogleLogin} disabled={isGoogleLoading} className="w-full h-12 glass border-border text-foreground font-medium">
+          {isGoogleLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : (
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -115,61 +102,28 @@ const Login = () => {
         </Button>
 
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-xs text-muted-foreground">or</span>
-          <div className="flex-1 h-px bg-border" />
+          <div className="flex-1 h-px bg-border" /><span className="text-xs text-muted-foreground">or</span><div className="flex-1 h-px bg-border" />
         </div>
 
-        {/* Email form */}
         <form onSubmit={handleEmailAuth} className="space-y-3">
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="pl-10 h-11 bg-secondary border-border"
-            />
+            <Input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 h-11 bg-secondary border-border" autoComplete="email" />
           </div>
-          <Input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="h-11 bg-secondary border-border"
-          />
-          <Button
-            type="submit"
-            disabled={isLoading}
-            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                {isSignUp ? "Sign Up" : "Sign In"}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </>
-            )}
+          <Input type="password" placeholder="Password (6+ characters)" value={password} onChange={e => setPassword(e.target.value)} className="h-11 bg-secondary border-border" autoComplete={isSignUp ? "new-password" : "current-password"} />
+          <Button type="submit" disabled={isLoading} className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (<>{isSignUp ? "Sign Up" : "Sign In"}<ArrowRight className="w-4 h-4 ml-2" /></>)}
           </Button>
         </form>
 
         <p className="text-center text-xs text-muted-foreground">
-          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-primary hover:underline font-medium"
-          >
+          {isSignUp ? "Already have an account?" : "New here?"}{" "}
+          <button onClick={() => setIsSignUp(!isSignUp)} className="text-primary hover:underline font-medium">
             {isSignUp ? "Sign In" : "Sign Up"}
           </button>
         </p>
 
-        {/* Skip for now */}
-        <button
-          onClick={() => navigate("/")}
-          className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
+        <button onClick={() => navigate("/app")} className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
           Continue without an account →
         </button>
       </motion.div>
