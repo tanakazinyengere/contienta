@@ -14,6 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pro_waitlist: {
         Row: {
           created_at: string
@@ -34,6 +93,39 @@ export type Database = {
           email?: string
           id?: string
           status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profile_health: {
+        Row: {
+          completed_suggestions: Json
+          created_at: string
+          id: string
+          measured_score: number
+          profile_url: string
+          projected_score: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_suggestions?: Json
+          created_at?: string
+          id?: string
+          measured_score?: number
+          profile_url: string
+          projected_score?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_suggestions?: Json
+          created_at?: string
+          id?: string
+          measured_score?: number
+          profile_url?: string
+          projected_score?: number
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -80,6 +172,48 @@ export type Database = {
         }
         Relationships: []
       }
+      reef_nodes: {
+        Row: {
+          attached_post_id: string | null
+          caption: string
+          created_at: string
+          id: string
+          image_url: string
+          position: number
+          reef_id: string
+          scheduled_at: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attached_post_id?: string | null
+          caption?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          position?: number
+          reef_id: string
+          scheduled_at?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attached_post_id?: string | null
+          caption?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          position?: number
+          reef_id?: string
+          scheduled_at?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       saved_posts: {
         Row: {
           body: string
@@ -112,6 +246,45 @@ export type Database = {
           id?: string
           image_search_terms?: string[] | null
           post_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      scheduled_linkedin_posts: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          image_url: string | null
+          linkedin_post_id: string | null
+          scheduled_at: string
+          status: string
+          text: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          image_url?: string | null
+          linkedin_post_id?: string | null
+          scheduled_at: string
+          status?: string
+          text?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          image_url?: string | null
+          linkedin_post_id?: string | null
+          scheduled_at?: string
+          status?: string
+          text?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
