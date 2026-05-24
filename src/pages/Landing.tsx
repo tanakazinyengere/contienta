@@ -211,11 +211,11 @@ const Landing = () => {
       <motion.div className="fixed top-0 left-0 right-0 h-1 bg-primary origin-left z-[100]" style={{ scaleX }} />
       {/* Nav */}
       <nav className="flex items-center justify-between px-4 sm:px-8 py-5">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-display font-black text-2xl leading-none">C.</span>
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+            <span className="text-primary-foreground font-display font-black text-xl leading-none">C</span>
           </div>
-          <span className="text-fluid-lg font-extrabold font-display text-gradient brand-logo">ClippedIn</span>
+          <span className="text-fluid-lg font-bold font-display text-foreground">ClippedIn</span>
         </div>
         <div className="hidden md:flex items-center gap-4 text-sm text-muted-foreground">
           <button onClick={() => navigate("/about")} className="hover:text-foreground transition-colors">About</button>
@@ -265,15 +265,14 @@ const Landing = () => {
             />
             
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-xs text-muted-foreground">
-              <Crown className="w-3.5 h-3.5 text-primary" />
-              Professional Authority Platform
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              Built for LinkedIn growth
             </div>
-            <h1 className="text-fluid-3xl font-extrabold font-display leading-tight">
-              Own Your <span className="text-gradient">Influence</span>.
+            <h1 className="text-fluid-3xl font-extrabold font-display leading-tight text-foreground">
+              Post better. <span className="text-primary">Grow faster.</span>
             </h1>
           </div>
 
-          {/* Animated Accent Group - Fades and slides in after a short delay */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -281,7 +280,7 @@ const Landing = () => {
             className="space-y-6"
           >
             <p className="text-fluid-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              The AI content engine and authority audit built for LinkedIn operators who want to post sharper, faster, and on-brand — every single day.
+              ClippedIn reads your real LinkedIn SSI, writes posts in your voice, and helps you schedule them — all in one place.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
               <Button
