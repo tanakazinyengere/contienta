@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link2, Play, Loader2, TrendingUp, Target, MessageSquare, Users, ChevronDown, ChevronUp, Lightbulb, ExternalLink, Zap, Heart, Info, Sparkles, Upload, Camera } from "lucide-react";
+import { Loader2, TrendingUp, Target, MessageSquare, Users, ChevronDown, ChevronUp, Lightbulb, ExternalLink, Heart, Info, Upload, X, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -9,7 +9,8 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 
 interface PillarScore {
   name: string;
-  score: number;
+  score: number | null;
+  confidence: "high" | "low" | "unreadable";
   maxScore: number;
   icon: React.ReactNode;
   description: string;
@@ -18,45 +19,38 @@ interface PillarScore {
 }
 
 interface SSIResult {
-  totalScore: number;
+  totalScore: number | null;
   level: string;
   levelDescription: string;
   pillars: PillarScore[];
   overallSuggestions: string[];
   quickWins: string[];
   kindWords: string[];
-  profileUrl: string;
   profileHandle: string;
 }
 
-const getLevelInfo = (score: number): { level: string; description: string; color: string; emoji: string } => {
-  if (score >= 70) return { level: "Top-Tier", description: "Top 10% — You're a LinkedIn powerhouse!", color: "text-emerald-400", emoji: "🏆" };
-  if (score >= 50) return { level: "Good Performer", description: "Above average. A few tweaks and you'll be elite.", color: "text-primary", emoji: "📈" };
-  if (score >= 30) return { level: "Average", description: "You're blending in. Let's make you stand out.", color: "text-amber-400", emoji: "⚡" };
-  return { level: "Getting Started", description: "Big room for growth — follow the tips below!", color: "text-rose-400", emoji: "🚀" };
+interface UploadSlot { id: string; file: File; previewUrl: string; status: "pending" | "analyzing" | "done" | "failed"; error?: string; partial?: any; }
+
+const getLevelInfo = (score: number | null) => {
+  if (score == null) return { level: "Need a clearer screenshot", description: "Upload an SSI screenshot to get your score.", emoji: "📷" };
+  if (score >= 70) return { level: "Top-Tier", description: "Top 10% — you're a LinkedIn powerhouse!", emoji: "🏆" };
+  if (score >= 50) return { level: "Good Performer", description: "Above average. A few tweaks and you'll be elite.", emoji: "📈" };
+  if (score >= 30) return { level: "Average", description: "You're blending in. Let's make you stand out.", emoji: "⚡" };
+  return { level: "Getting Started", description: "Big room for growth — follow the tips below.", emoji: "🚀" };
 };
 
-const ScoreRing = ({ score, maxScore, size = 80 }: { score: number; maxScore: number; size?: number }) => {
-  const percentage = (score / maxScore) * 100;
-  const radius = (size - 8) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
-
+const ScoreRing = ({ score, maxScore, size = 56 }: { score: number | null; maxScore: number; size?: number }) => {
+  const pct = score == null ? 0 : (score / maxScore) * 100;
+  const r = (size - 8) / 2;
+  const c = 2 * Math.PI * r;
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="transform -rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} stroke="hsl(var(--muted))" strokeWidth="4" fill="none" />
-        <circle
-          cx={size / 2} cy={size / 2} r={radius}
-          stroke="hsl(var(--primary))" strokeWidth="4" fill="none"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          className="transition-all duration-1000 ease-out"
-        />
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="hsl(var(--muted))" strokeWidth="4" fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="hsl(var(--primary))" strokeWidth="4" fill="none" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c - (pct / 100) * c} className="transition-all duration-700" />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-sm font-bold text-foreground">{score}/{maxScore}</span>
+        <span className="text-xs font-bold text-foreground">{score == null ? "—" : `${score}/${maxScore}`}</span>
       </div>
     </div>
   );
@@ -64,51 +58,30 @@ const ScoreRing = ({ score, maxScore, size = 80 }: { score: number; maxScore: nu
 
 const PillarCard = ({ pillar, index }: { pillar: PillarScore; index: number }) => {
   const [expanded, setExpanded] = useState(true);
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 + index * 0.1 }}
-      className="glass rounded-xl p-4 sm:p-5 space-y-3 hover:glow-border transition-all duration-300"
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
-            {pillar.icon}
-          </div>
-          <div>
-            <h4 className="text-sm font-bold text-foreground">{pillar.name}</h4>
-            <p className="text-xs text-muted-foreground">{pillar.description}</p>
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + index * 0.05 }} className="glass rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center text-primary shrink-0">{pillar.icon}</div>
+          <div className="min-w-0">
+            <h4 className="text-sm font-bold text-foreground truncate">{pillar.name}</h4>
+            <p className="text-xs text-muted-foreground truncate">{pillar.description}</p>
           </div>
         </div>
-        <ScoreRing score={pillar.score} maxScore={pillar.maxScore} size={56} />
+        <ScoreRing score={pillar.score} maxScore={pillar.maxScore} />
       </div>
-
+      {pillar.confidence !== "high" && (
+        <p className="text-[10px] text-amber-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Couldn't read this clearly — upload a sharper crop.</p>
+      )}
       <p className="text-xs text-muted-foreground leading-relaxed">{pillar.details}</p>
-
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1 text-xs text-primary font-medium hover:text-primary/80 transition-colors"
-      >
-        <Lightbulb className="w-3.5 h-3.5" />
-        {expanded ? "Hide" : "Show"} Suggestions
-        {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 text-xs text-primary font-medium press-effect">
+        <Lightbulb className="w-3.5 h-3.5" />{expanded ? "Hide" : "Show"} Suggestions {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>
-
       <AnimatePresence>
         {expanded && (
-          <motion.ul
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="space-y-2 overflow-hidden"
-          >
+          <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-1.5 overflow-hidden">
             {pillar.suggestions.map((s, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                <span className="text-primary mt-0.5">→</span>
-                <span>{s}</span>
-              </li>
+              <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground"><span className="text-primary mt-0.5">→</span><span>{s}</span></li>
             ))}
           </motion.ul>
         )}
@@ -119,426 +92,189 @@ const PillarCard = ({ pillar, index }: { pillar: PillarScore; index: number }) =
 
 const ProfileTester = () => {
   const [profileUrl, setProfileUrl] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isAnalyzingScreenshot, setIsAnalyzingScreenshot] = useState(false);
-  const [result, setResult] = useState<SSIResult | null>(null);
-  const { isPremium } = useUserProfile();
+  const [slots, setSlots] = useState<UploadSlot[]>([]);
+  const [merged, setMerged] = useState<SSIResult | null>(null);
 
-  const buildResultFromAI = (data: any, fallbackUrl: string, fallbackHandle: string) => {
+  const handleFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const accepted = Array.from(files).filter(f => f.type.startsWith("image/")).slice(0, 4);
+    if (accepted.length === 0) { toast.error("Please upload image files"); return; }
+
+    const newSlots: UploadSlot[] = accepted.map(f => ({
+      id: `slot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      file: f,
+      previewUrl: URL.createObjectURL(f),
+      status: "pending",
+    }));
+    setSlots(prev => [...prev, ...newSlots].slice(0, 4));
+
+    // Process each in parallel, update state per-slot as they finish.
+    await Promise.allSettled(newSlots.map(slot => analyzeSlot(slot)));
+  }, []);
+
+  const analyzeSlot = async (slot: UploadSlot) => {
+    setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, status: "analyzing" } : s));
+    try {
+      const base64 = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = rej;
+        r.readAsDataURL(slot.file);
+      });
+      const { data, error } = await supabase.functions.invoke("analyze-ssi-screenshot", { body: { imageBase64: base64 } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, status: "done", partial: data } : s));
+      // Re-merge after every successful analysis.
+      setSlots(curr => {
+        const all = curr.map(s => s.id === slot.id ? { ...s, status: "done" as const, partial: data } : s);
+        mergeIntoResult(all);
+        return all;
+      });
+    } catch (e: any) {
+      setSlots(prev => prev.map(s => s.id === slot.id ? { ...s, status: "failed", error: e.message || "Failed" } : s));
+      toast.error(`One screenshot failed: ${e.message?.slice(0, 80) || "error"}`);
+    }
+  };
+
+  const mergeIntoResult = (allSlots: UploadSlot[]) => {
+    const done = allSlots.filter(s => s.status === "done" && s.partial);
+    if (done.length === 0) { setMerged(null); return; }
+    // For each pillar, pick the highest-confidence reading across screenshots.
+    const pick = (key: string) => {
+      let best: any = null;
+      for (const s of done) {
+        const p = s.partial.pillars?.[key];
+        if (!p) continue;
+        if (!best) { best = p; continue; }
+        const rank = (c: string) => c === "high" ? 3 : c === "low" ? 2 : 1;
+        if (rank(p.confidence) > rank(best.confidence)) best = p;
+      }
+      return best || { score: null, confidence: "unreadable", details: "", suggestions: [] };
+    };
+    const pb = pick("professionalBrand");
+    const fp = pick("findPeople");
+    const ei = pick("engageInsights");
+    const br = pick("buildRelationships");
     const pillars: PillarScore[] = [
-      { name: "Professional Brand", score: data.pillars.professionalBrand.score, maxScore: 25, icon: <Target className="w-4 h-4" />, description: "How you show up on LinkedIn", suggestions: data.pillars.professionalBrand.suggestions, details: data.pillars.professionalBrand.details },
-      { name: "Find the Right People", score: data.pillars.findPeople.score, maxScore: 25, icon: <Users className="w-4 h-4" />, description: "Your network quality & targeting", suggestions: data.pillars.findPeople.suggestions, details: data.pillars.findPeople.details },
-      { name: "Engage with Insights", score: data.pillars.engageInsights.score, maxScore: 25, icon: <MessageSquare className="w-4 h-4" />, description: "Your content & comment game", suggestions: data.pillars.engageInsights.suggestions, details: data.pillars.engageInsights.details },
-      { name: "Build Relationships", score: data.pillars.buildRelationships.score, maxScore: 25, icon: <TrendingUp className="w-4 h-4" />, description: "How well you nurture connections", suggestions: data.pillars.buildRelationships.suggestions, details: data.pillars.buildRelationships.details },
+      { name: "Professional Brand", score: pb.score, confidence: pb.confidence, maxScore: 25, icon: <Target className="w-4 h-4" />, description: "How you show up", suggestions: pb.suggestions || [], details: pb.details || "" },
+      { name: "Find the Right People", score: fp.score, confidence: fp.confidence, maxScore: 25, icon: <Users className="w-4 h-4" />, description: "Network quality", suggestions: fp.suggestions || [], details: fp.details || "" },
+      { name: "Engage with Insights", score: ei.score, confidence: ei.confidence, maxScore: 25, icon: <MessageSquare className="w-4 h-4" />, description: "Content & comments", suggestions: ei.suggestions || [], details: ei.details || "" },
+      { name: "Build Relationships", score: br.score, confidence: br.confidence, maxScore: 25, icon: <TrendingUp className="w-4 h-4" />, description: "Nurturing connections", suggestions: br.suggestions || [], details: br.details || "" },
     ];
-    const totalScore = pillars.reduce((sum, p) => sum + p.score, 0);
-    const levelInfo = getLevelInfo(totalScore);
-    setResult({
-      totalScore,
-      level: levelInfo.level,
-      levelDescription: levelInfo.description,
+    // Total: prefer an "overallScore" from any screenshot if confident; else sum readable pillars.
+    const overallFromShot = done.find(s => s.partial.overallScore != null && s.partial.overallConfidence === "high")?.partial.overallScore;
+    const sumReadable = pillars.reduce((acc, p) => p.score != null ? acc + p.score : acc, 0);
+    const allReadable = pillars.every(p => p.score != null);
+    const total = overallFromShot ?? (allReadable ? sumReadable : null);
+    const info = getLevelInfo(total);
+
+    const latest = done[done.length - 1].partial;
+    setMerged({
+      totalScore: total,
+      level: info.level,
+      levelDescription: info.description,
       pillars,
-      overallSuggestions: data.overallSuggestions || [],
-      quickWins: data.quickWins || [],
-      kindWords: data.kindWords || [],
-      profileUrl: fallbackUrl,
-      profileHandle: data.profileHandle || fallbackHandle,
+      overallSuggestions: latest.overallSuggestions || [],
+      quickWins: latest.quickWins || [],
+      kindWords: latest.kindWords || [],
+      profileHandle: latest.profileHandle || "you",
     });
   };
 
-  const handleScreenshot = useCallback(async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
-      return;
-    }
-    setIsAnalyzingScreenshot(true);
-    setResult(null);
-    try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const { data, error } = await supabase.functions.invoke("analyze-ssi-screenshot", {
-        body: { imageBase64: base64 },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      buildResultFromAI(data, "uploaded-screenshot", "you");
-      toast.success("Screenshot analyzed!");
-    } catch (err: any) {
-      console.error("Screenshot analysis failed:", err);
-      toast.error(err.message || "Failed to analyze screenshot");
-    } finally {
-      setIsAnalyzingScreenshot(false);
-    }
-  }, []);
+  const removeSlot = (id: string) => {
+    setSlots(prev => {
+      const next = prev.filter(s => s.id !== id);
+      mergeIntoResult(next);
+      return next;
+    });
+  };
 
-  const handleAnalyze = useCallback(async () => {
-    let trimmed = profileUrl.trim();
-    if (!trimmed) {
-      toast.error("Please enter a LinkedIn profile URL");
-      return;
-    }
-
-    if (!trimmed.startsWith("http")) {
-      trimmed = "https://" + trimmed;
-    }
-
-    if (!trimmed.includes("linkedin.com/in/")) {
-      toast.error("Please enter a valid LinkedIn profile URL (e.g., linkedin.com/in/yourname)");
-      return;
-    }
-
-    setIsAnalyzing(true);
-    setResult(null);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("analyze-linkedin-profile", {
-        body: { profileUrl: trimmed },
-      });
-
-      if (error) throw error;
-
-      const pillars: PillarScore[] = [
-        {
-          name: "Professional Brand",
-          score: data.pillars.professionalBrand.score,
-          maxScore: 25,
-          icon: <Target className="w-4 h-4" />,
-          description: "How you show up on LinkedIn",
-          suggestions: data.pillars.professionalBrand.suggestions,
-          details: data.pillars.professionalBrand.details,
-        },
-        {
-          name: "Find the Right People",
-          score: data.pillars.findPeople.score,
-          maxScore: 25,
-          icon: <Users className="w-4 h-4" />,
-          description: "Your network quality & targeting",
-          suggestions: data.pillars.findPeople.suggestions,
-          details: data.pillars.findPeople.details,
-        },
-        {
-          name: "Engage with Insights",
-          score: data.pillars.engageInsights.score,
-          maxScore: 25,
-          icon: <MessageSquare className="w-4 h-4" />,
-          description: "Your content & comment game",
-          suggestions: data.pillars.engageInsights.suggestions,
-          details: data.pillars.engageInsights.details,
-        },
-        {
-          name: "Build Relationships",
-          score: data.pillars.buildRelationships.score,
-          maxScore: 25,
-          icon: <TrendingUp className="w-4 h-4" />,
-          description: "How well you nurture connections",
-          suggestions: data.pillars.buildRelationships.suggestions,
-          details: data.pillars.buildRelationships.details,
-        },
-      ];
-
-      const totalScore = pillars.reduce((sum, p) => sum + p.score, 0);
-      const levelInfo = getLevelInfo(totalScore);
-
-      const handleMatch = trimmed.match(/linkedin\.com\/in\/([^\/\?]+)/);
-      const handle = handleMatch ? handleMatch[1] : "";
-
-      setResult({
-        totalScore,
-        level: levelInfo.level,
-        levelDescription: levelInfo.description,
-        pillars,
-        overallSuggestions: data.overallSuggestions || [],
-        quickWins: data.quickWins || [],
-        kindWords: data.kindWords || [],
-        profileUrl: trimmed,
-        profileHandle: data.profileHandle || handle,
-      });
-    } catch (err: any) {
-      console.error("Analysis failed:", err);
-      toast.error(err.message || "Failed to connect to the analysis engine. Is the local server running?");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [profileUrl]);
+  const openMySSI = () => {
+    // LinkedIn only exposes the LOGGED-IN user's own SSI page. We can't deeplink to someone else's.
+    window.open("https://www.linkedin.com/sales/ssi", "_blank", "noopener,noreferrer");
+    toast.info("LinkedIn will open your own SSI page. Screenshot it and upload here.");
+  };
 
   return (
     <div className="space-y-6">
-      {/* Input Section */}
       <section className="px-4 sm:px-6 py-6 space-y-4">
         <div className="text-center space-y-2 max-w-xl mx-auto">
-          <h2 className="text-xl sm:text-2xl font-bold font-display text-foreground">
-            🔍 Profile Tester
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Paste your LinkedIn URL and get a personalized{" "}
-            <span className="text-primary font-medium">Social Selling Index (SSI)</span> analysis with actionable tips.
-          </p>
+          <h2 className="text-xl sm:text-2xl font-bold font-display text-foreground">🔍 Profile Tester</h2>
+          <p className="text-sm text-muted-foreground">Your <span className="text-primary font-medium">real</span> Social Selling Index, read straight from the LinkedIn page.</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto">
-          <div className="relative flex-1">
-            <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="linkedin.com/in/yourname"
-              value={profileUrl}
-              onChange={(e) => setProfileUrl(e.target.value)}
-              className="bg-secondary border-border h-11 pl-10"
-              onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
-            />
-          </div>
-          <Button
-            onClick={handleAnalyze}
-            disabled={isAnalyzing || !profileUrl.trim()}
-            className="h-11 px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold min-w-[120px]"
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4 mr-2" />
-                Start
-              </>
-            )}
-          </Button>
-        </div>
-
-        {/* Real SSI Score: open LinkedIn + upload screenshot */}
+        {/* Step 1 — URL + open */}
         <div className="max-w-xl mx-auto glass rounded-2xl p-4 space-y-3">
-          <div className="flex items-start gap-2">
-            <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-muted-foreground">
-              Want your <span className="text-foreground font-medium">real</span> SSI score? Open LinkedIn's official page, screenshot it, and upload it here — our AI reads the numbers and coaches you.
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button
-              asChild
-              variant="outline"
-              className="flex-1 h-10 rounded-xl press-effect"
-            >
-              <a href="https://www.linkedin.com/sales/ssi" target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Open my LinkedIn SSI
-              </a>
-            </Button>
-            <label className="flex-1">
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleScreenshot(f);
-                  e.target.value = "";
-                }}
-              />
-              <span className={`flex items-center justify-center h-10 px-4 rounded-xl bg-accent text-accent-foreground font-semibold cursor-pointer press-effect text-sm ${isAnalyzingScreenshot ? "opacity-70 pointer-events-none" : "hover:bg-accent/90"}`}>
-                {isAnalyzingScreenshot ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Reading screenshot...</>
-                ) : (
-                  <><Upload className="w-4 h-4 mr-2" /> Upload SSI screenshot</>
-                )}
-              </span>
-            </label>
-          </div>
+          <p className="text-xs font-bold text-foreground uppercase tracking-wider">Step 1 · Your profile</p>
+          <Input
+            placeholder="linkedin.com/in/yourname (optional — we save it)"
+            value={profileUrl}
+            onChange={e => setProfileUrl(e.target.value)}
+            className="bg-secondary border-border h-10"
+          />
+          <Button variant="outline" onClick={openMySSI} className="w-full h-10 rounded-xl press-effect">
+            <ExternalLink className="w-4 h-4 mr-2" />Open my SSI page on LinkedIn
+          </Button>
+          <p className="text-[10px] text-muted-foreground flex items-start gap-1"><Info className="w-3 h-3 mt-0.5 shrink-0" />LinkedIn only shows the SSI of the account you're logged into. We can't analyse anyone else's profile from a URL.</p>
+        </div>
+
+        {/* Step 2 — upload */}
+        <div className="max-w-xl mx-auto glass rounded-2xl p-4 space-y-3">
+          <p className="text-xs font-bold text-foreground uppercase tracking-wider">Step 2 · Upload screenshots</p>
+          <p className="text-xs text-muted-foreground">Drop 1–4 screenshots (overall view + each pillar tab for max accuracy).</p>
+          <label className="block">
+            <input type="file" accept="image/*" multiple className="hidden" onChange={e => { handleFiles(e.target.files); e.target.value = ""; }} />
+            <div className="border-2 border-dashed border-border rounded-xl p-5 text-center cursor-pointer hover:border-primary transition-colors press-effect">
+              <Upload className="w-6 h-6 mx-auto text-primary mb-1.5" />
+              <p className="text-xs font-medium text-foreground">Pick or drop screenshots</p>
+              <p className="text-[10px] text-muted-foreground">Up to 4 images · analysed in parallel</p>
+            </div>
+          </label>
+
+          {slots.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {slots.map(s => (
+                <div key={s.id} className="relative group">
+                  <img src={s.previewUrl} alt="" className="w-full h-20 object-cover rounded-xl" />
+                  <div className="absolute inset-0 rounded-xl flex items-center justify-center bg-black/30">
+                    {s.status === "analyzing" && <Loader2 className="w-5 h-5 text-white animate-spin" />}
+                    {s.status === "done" && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+                    {s.status === "failed" && <AlertCircle className="w-5 h-5 text-rose-400" />}
+                  </div>
+                  <button onClick={() => removeSlot(s.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-background border border-border text-muted-foreground hover:text-destructive flex items-center justify-center press-effect">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
-
-      {/* Results */}
       <AnimatePresence>
-        {result && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="px-4 sm:px-6 pb-8 space-y-6"
-          >
-            {/* Profile Preview - Link Card */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="glass rounded-xl p-4 flex items-center gap-3 max-w-xl mx-auto hover:glow-border transition-all"
-            >
-              <div className="w-12 h-12 rounded-full bg-[#0A66C2] flex items-center justify-center text-white font-bold text-lg">
-                {result.profileHandle.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">@{result.profileHandle}</p>
-                <a
-                  href={result.profileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline flex items-center gap-1"
-                >
-                  View on LinkedIn <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-              <div className="flex-shrink-0 bg-[#0A66C2]/10 rounded-lg p-2">
-                <svg className="w-6 h-6 text-[#0A66C2]" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                </svg>
-              </div>
-            </motion.div>
-
-            {/* Kind Words - Praise Section */}
-            {result.kindWords.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="glass rounded-xl p-5 space-y-3 border border-emerald-500/20"
-              >
-                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Heart className="w-4 h-4 text-emerald-400" />
-                  Kind Words — What You're Doing Great
-                </h3>
-                <ul className="space-y-2">
-                  {result.kindWords.map((s, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                      <span className="text-emerald-400 font-bold mt-0.5">✓</span>
-                      <span>{s}</span>
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            )}
-
-            {/* Quick Actions */}
-            {result.quickWins.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="glass rounded-xl p-5 space-y-3 glow-border"
-              >
-                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-amber-400" />
-                  Quick Actions — Do These Right Now (Under 5 min)
-                </h3>
-                <ul className="space-y-2">
-                  {result.quickWins.map((s, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                      <span className="text-amber-400 font-bold mt-0.5">⚡</span>
-                      <span>{s}</span>
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            )}
-
-            {/* Overall Score */}
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="glass rounded-2xl p-6 sm:p-8 text-center space-y-4 glow-border"
-            >
-              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Your SSI Score
-              </h3>
-              <div className="flex justify-center">
-                <ScoreRing score={result.totalScore} maxScore={100} size={120} />
-              </div>
-              <div>
-                <p className={`text-lg font-bold font-display ${getLevelInfo(result.totalScore).color}`}>
-                  {getLevelInfo(result.totalScore).emoji} {result.level}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                  {result.levelDescription}
-                </p>
-              </div>
-
-              {/* SSI Verification Badge */}
-              <div className="flex items-center justify-center gap-2 mt-3 text-[10px] text-muted-foreground bg-secondary/50 rounded-lg px-3 py-2 max-w-sm mx-auto">
-                <Info className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                <span>
-                  This score is an AI estimation using LinkedIn's verified SSI methodology. Check your{" "}
-                  <a href="https://www.linkedin.com/sales/ssi" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                    official SSI score
-                  </a>{" "}
-                  for exact results.
-                </span>
-              </div>
-            </motion.div>
-
-            {/* Pillars Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {result.pillars.map((pillar, idx) => (
-                <PillarCard key={pillar.name} pillar={pillar} index={idx} />
-              ))}
+        {merged && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="px-4 sm:px-6 pb-8 space-y-5">
+            {/* Overview card */}
+            <div className="glass rounded-3xl p-5 max-w-xl mx-auto text-center space-y-2">
+              <p className="text-xs text-muted-foreground">Overall SSI</p>
+              <p className="text-5xl font-extrabold text-gradient">{merged.totalScore == null ? "—" : merged.totalScore}<span className="text-lg text-muted-foreground">/100</span></p>
+              <p className="text-sm font-semibold text-foreground">{getLevelInfo(merged.totalScore).emoji} {merged.level}</p>
+              <p className="text-xs text-muted-foreground">{merged.levelDescription}</p>
             </div>
 
-            {/* Overall Suggestions */}
-            {result.overallSuggestions.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-                className="glass rounded-xl p-5 space-y-3"
-              >
-                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4 text-primary" />
-                  Strategic Improvement Tips
-                </h3>
-                <ul className="space-y-2">
-                  {result.overallSuggestions.slice(0, isPremium ? result.overallSuggestions.length : 1).map((s, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                      <span className="text-primary font-bold mt-0.5">{i + 1}.</span>
-                      <span>{s}</span>
-                    </li>
-                  ))}
-                  {!isPremium && result.overallSuggestions.length > 1 && (
-                    <li className="relative">
-                      <div className="flex items-start gap-2 text-xs text-muted-foreground blur-sm">
-                        <span className="text-primary font-bold mt-0.5">2.</span>
-                        <span>{result.overallSuggestions[1]}</span>
-                      </div>
-                      <div className="flex items-start gap-2 text-xs text-muted-foreground blur-sm">
-                        <span className="text-primary font-bold mt-0.5">3.</span>
-                        <span>{result.overallSuggestions[2]}</span>
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Button
-                          size="sm"
-                          onClick={() => window.open('https://checkout.revolut.com/pay/cbba696a-b4cb-4e9e-8801-19de36ea961e', '_blank')}
-                          className="bg-primary hover:bg-primary/90 text-xs px-3 py-1 h-8"
-                        >
-                          Reveal with Platinum
-                        </Button>
-                      </div>
-                    </li>
-                  )}
+            {merged.kindWords.length > 0 && (
+              <div className="glass rounded-2xl p-5 space-y-2 max-w-xl mx-auto border border-emerald-500/20">
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2"><Heart className="w-4 h-4 text-emerald-400" />Kind Words</h3>
+                <ul className="space-y-1.5">
+                  {merged.kindWords.map((s, i) => <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground"><span className="text-emerald-400 mt-0.5">✓</span>{s}</li>)}
                 </ul>
-              </motion.div>
+              </div>
             )}
 
-            {/* Create Content CTA */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.7 }}
-              className="text-center"
-            >
-              <p className="text-xs text-muted-foreground mb-2">Ready to improve your content game?</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => {
-                  toast.info("Switch to the Content Engine tab to create posts!");
-                }}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Create Content with AI
-              </Button>
-            </motion.div>
+            <div className="grid sm:grid-cols-2 gap-3 max-w-3xl mx-auto">
+              {merged.pillars.map((p, i) => <PillarCard key={p.name} pillar={p} index={i} />)}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

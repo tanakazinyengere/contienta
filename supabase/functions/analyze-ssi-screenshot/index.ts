@@ -1,4 +1,5 @@
 // Edge function: analyze a LinkedIn SSI screenshot using vision AI.
+// v2: stricter extraction — never estimates. Returns null + low confidence when unsure.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -26,20 +27,31 @@ Deno.serve(async (req) => {
       ? imageBase64
       : `data:image/png;base64,${imageBase64}`;
 
-    const SYSTEM = `You read a screenshot of LinkedIn's Social Selling Index (SSI) page (linkedin.com/sales/ssi) and extract the 4 pillar scores and overall SSI. Then give kind, specific, actionable advice. Respond ONLY with valid JSON in this shape:
+    const SYSTEM = `You are an OCR + LinkedIn SSI coach. The screenshot is from linkedin.com/sales/ssi.
+
+CRITICAL EXTRACTION RULES:
+- Read the printed numbers EXACTLY. Do not estimate, do not infer, do not round.
+- Each pillar has a maximum of 25. Overall SSI maximum is 100.
+- If a number is clearly legible, set "confidence": "high".
+- If a number is partially obscured or ambiguous, return null for "score" and "confidence": "low".
+- If you cannot see that pillar at all in this screenshot, return null for "score" and "confidence": "unreadable".
+- Never invent a score to "look helpful". Null is correct when uncertain.
+
+Respond ONLY with valid JSON in this exact shape:
 {
-  "profileHandle": "<screenshot user if visible, else 'you'>",
+  "profileHandle": "<the user name visible on screen, or 'you'>",
+  "overallScore": <number 0-100 or null>,
+  "overallConfidence": "high" | "low" | "unreadable",
   "pillars": {
-    "professionalBrand": { "score": <0-25>, "details": "<friendly note>", "suggestions": ["<actionable with example>", ...] },
-    "findPeople":        { "score": <0-25>, "details": "<friendly note>", "suggestions": ["...", ...] },
-    "engageInsights":    { "score": <0-25>, "details": "<friendly note>", "suggestions": ["...", ...] },
-    "buildRelationships":{ "score": <0-25>, "details": "<friendly note>", "suggestions": ["...", ...] }
+    "professionalBrand": { "score": <0-25 or null>, "confidence": "high"|"low"|"unreadable", "details": "<friendly note>", "suggestions": ["<actionable tip with example>", "...", "..."] },
+    "findPeople":        { "score": <0-25 or null>, "confidence": "high"|"low"|"unreadable", "details": "...", "suggestions": ["...","...","..."] },
+    "engageInsights":    { "score": <0-25 or null>, "confidence": "high"|"low"|"unreadable", "details": "...", "suggestions": ["...","...","..."] },
+    "buildRelationships":{ "score": <0-25 or null>, "confidence": "high"|"low"|"unreadable", "details": "...", "suggestions": ["...","...","..."] }
   },
-  "overallSuggestions": ["...", "...", "..."],
-  "quickWins": ["<under-5-min action>", "...", "..."],
-  "kindWords": ["<genuine compliment>", "...", "..."]
-}
-If a score is illegible, estimate from the visible context but stay close to what's shown.`;
+  "overallSuggestions": ["...","...","..."],
+  "quickWins": ["<under-5-min action>","...","..."],
+  "kindWords": ["<genuine compliment>","...","..."]
+}`;
 
     const aiResponse = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -50,26 +62,28 @@ If a score is illegible, estimate from the visible context but stay close to wha
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-pro",
           messages: [
             { role: "system", content: SYSTEM },
             {
               role: "user",
               content: [
-                { type: "text", text: "Extract my LinkedIn SSI scores and coach me." },
+                { type: "text", text: "Read the visible SSI numbers exactly and coach me. Return null for anything you can't read clearly." },
                 { type: "image_url", image_url: { url: dataUrl } },
               ],
             },
           ],
+          response_format: { type: "json_object" },
         }),
       },
     );
 
     if (!aiResponse.ok) {
       const errText = await aiResponse.text();
+      const status = aiResponse.status === 429 || aiResponse.status === 402 ? aiResponse.status : 500;
       return new Response(
-        JSON.stringify({ error: `AI vision failed: ${errText}` }),
-        { status: aiResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ error: `AI vision failed: ${errText.slice(0, 300)}` }),
+        { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -81,7 +95,7 @@ If a score is illegible, estimate from the visible context but stay close to wha
     let parsed;
     try {
       parsed = JSON.parse(content.trim());
-    } catch (e) {
+    } catch {
       throw new Error(`AI returned non-JSON: ${content.slice(0, 200)}`);
     }
 
