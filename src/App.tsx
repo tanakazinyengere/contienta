@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import CookieBanner from "@/components/CookieBanner";
 import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -13,6 +14,11 @@ import Pricing from "./pages/Pricing";
 import Onboarding from "./pages/Onboarding";
 import Admin from "./pages/Admin";
 import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import Cookies from "./pages/Cookies";
+import Refunds from "./pages/Refunds";
+import DMCA from "./pages/DMCA";
+import AcceptableUse from "./pages/AcceptableUse";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,9 +40,14 @@ const App = () => (
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/terms" element={<Terms />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/cookies" element={<Cookies />} />
+          <Route path="/refunds" element={<Refunds />} />
+          <Route path="/dmca" element={<DMCA />} />
+          <Route path="/acceptable-use" element={<AcceptableUse />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <CookieBanner />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
