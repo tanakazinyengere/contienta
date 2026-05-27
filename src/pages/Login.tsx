@@ -1,12 +1,18 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Mail, Loader2, ArrowRight } from "lucide-react";
+import { Mail, Loader2, ArrowRight, AlertTriangle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
+
+interface OAuthBlock {
+  title: string;
+  message: string;
+  steps: string[];
+}
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,14 +21,11 @@ const Login = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [oauthBlock, setOauthBlock] = useState<OAuthBlock | null>(null);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) navigate("/app");
-    });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate("/app");
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { if (session) navigate("/app"); });
+    supabase.auth.getSession().then(({ data: { session } }) => { if (session) navigate("/app"); });
     return () => subscription.unsubscribe();
   }, [navigate]);
 
@@ -33,27 +36,19 @@ const Login = () => {
     setIsLoading(true);
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: { emailRedirectTo: `${window.location.origin}/app` },
-        });
+        const { error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: `${window.location.origin}/app` } });
         if (error) throw error;
         toast.success("Check your inbox to confirm your email — then sign in.");
         setIsSignUp(false);
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) {
-          if (error.message?.toLowerCase().includes("invalid")) {
-            toast.error("Wrong email or password. Try again, or sign up if you're new.");
-          } else if (error.message?.toLowerCase().includes("confirm")) {
-            toast.error("Confirm your email first — check your inbox.");
-          } else {
-            toast.error(error.message);
-          }
+          if (error.message?.toLowerCase().includes("invalid")) toast.error("Wrong email or password. Try again, or sign up if you're new.");
+          else if (error.message?.toLowerCase().includes("confirm")) toast.error("Confirm your email first — check your inbox.");
+          else toast.error(error.message);
           return;
         }
-        toast.success("Welcome back!");
+        toast.success("Welcome back");
       }
     } catch (err: any) {
       toast.error(err.message || "Something went wrong");
@@ -63,13 +58,25 @@ const Login = () => {
   };
 
   const handleGoogleLogin = async () => {
+    setOauthBlock(null);
     setIsGoogleLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/app`,
-      });
+      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/app` });
       if (result.error) {
-        toast.error(`Google sign-in failed: ${result.error.message || "try again"}`);
+        const m = (result.error.message || "").toLowerCase();
+        if (m.includes("blocked") || m.includes("not_approved") || m.includes("not approved") || m.includes("pending") || m.includes("403") || m.includes("disabled") || m.includes("unsupported provider")) {
+          setOauthBlock({
+            title: "Google sign-in not approved yet",
+            message: "Google needs to approve token minting for ClippedIn before this works.",
+            steps: [
+              "Use email & password to sign in below — it works right now.",
+              "We'll enable Google sign-in the moment approval comes through (usually 1–3 days).",
+              "If you already had a Google account here, your data is safe — log in with that email and reset your password.",
+            ],
+          });
+        } else {
+          toast.error(`Google sign-in failed: ${result.error.message || "try again"}`);
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "Google sign-in failed");
@@ -88,6 +95,22 @@ const Login = () => {
           <h1 className="text-2xl font-bold font-display text-foreground">ClippedIn</h1>
           <p className="text-sm text-muted-foreground">{isSignUp ? "Create your account" : "Welcome back"}</p>
         </div>
+
+        {oauthBlock && (
+          <div className="glass border border-amber-500/30 rounded-2xl p-4 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">{oauthBlock.title}</p>
+                <p className="text-xs text-muted-foreground">{oauthBlock.message}</p>
+              </div>
+            </div>
+            <ul className="text-xs text-muted-foreground space-y-1 ml-6 list-disc">
+              {oauthBlock.steps.map((s, i) => <li key={i}>{s}</li>)}
+            </ul>
+            <button onClick={() => setOauthBlock(null)} className="text-[11px] text-primary hover:underline ml-6 press-effect">Dismiss</button>
+          </div>
+        )}
 
         <Button variant="outline" onClick={handleGoogleLogin} disabled={isGoogleLoading} className="w-full h-12 glass border-border text-foreground font-medium">
           {isGoogleLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : (
@@ -124,7 +147,7 @@ const Login = () => {
         </p>
 
         <button onClick={() => navigate("/app")} className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
-          Continue without an account →
+          Continue without an account <ExternalLink className="w-3 h-3 inline ml-0.5" />
         </button>
       </motion.div>
     </div>
