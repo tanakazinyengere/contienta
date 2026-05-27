@@ -2,7 +2,7 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 const InputSchema = z.object({
@@ -11,93 +11,116 @@ const InputSchema = z.object({
   vibe: z.string().optional().default("Professional"),
   batchSize: z.number().min(1).max(50).optional().default(5),
   framework: z.string().optional(),
+  think: z.boolean().optional().default(false),
+  attachments: z.array(z.object({ name: z.string(), dataUrl: z.string() })).optional().default([]),
 });
 
-const SYSTEM_PROMPT = `You are a world-class LinkedIn content strategist. You create high-performing LinkedIn posts that drive engagement, build authority, and generate leads.
+const SYSTEM_PROMPT = `You are a world-class LinkedIn content strategist. Create high-performing posts that drive engagement, build authority, and generate leads.
 
-POST LENGTH GUIDELINES (STRICT):
-- "short": Under 400 chars. Punchy, provocative. One idea, one question.
-- "medium": 800-1200 chars. Narrative + advice. Use frameworks like PAS, BAB.
-- "long": 2000-2800 chars. Deep-dive guides, personal stories.
-- HARD LIMIT: Never exceed 2950 characters (to leave room for metadata).
+POST LENGTH (STRICT):
+- short: < 400 chars
+- medium: 800–1200 chars
+- long: 2000–2800 chars
+- HARD LIMIT: never exceed 2950 chars total
 
-FORMATTING RULES:
-- Character counts include spaces and emojis.
-- Double line breaks between sentences for readability
-- Hook must be 7-10 words, maximum 80 characters
-- End with a specific Call-to-Action question
-- ALWAYS include exactly 6-8 hashtags per post
-- Use emojis sparingly as functional anchors (1-3 per post)
-- Use arrows (→), checkmarks (✓), bullets (•) for lists
+FORMATTING:
+- Double line breaks between paragraphs
+- Hook = 7–10 words, max 80 chars
+- End with a specific question CTA
+- 6–8 hashtags, 1–3 emojis used sparingly as functional anchors only
+- Use arrows (→), checkmarks (✓), or bullets (•) for lists
 
-FRAMEWORKS TO USE:
-- SLAY: Story → Lesson → Action → You
-- BAB: Before → After → Bridge
-- PAS: Problem → Agitate → Solution
-- Hook-Context-Tension-Pivot-Payoff for long posts
-- Contrarian Take for short posts
+FRAMEWORKS (rotate, no repeats in same batch):
+- SLAY (Story → Lesson → Action → You)
+- BAB (Before → After → Bridge)
+- PAS (Problem → Agitate → Solution)
+- Hook → Context → Tension → Pivot → Payoff
+- Contrarian Take
 
-Respond with a JSON object containing a "posts" array. Each post MUST have a different structural style.`;
+Respond with JSON: { posts: [...] }. Each post = different structural style.`;
 
-async function generateBatch(prompt: string, postLength: string, vibe: string, count: number, apiKey: string): Promise<any[]> {
+const THINK_PROMPT = `You are a sharp content strategist. Before writing posts, decide if the user's brief has enough specifics to write *original* content (not generic).
+
+Ask for clarification ONLY if BOTH are true:
+1. The brief is one short phrase with no specifics (no audience, no angle, no story, no result, no number)
+2. The brief would force generic advice
+
+Otherwise, do NOT clarify — just write.
+
+If you DO ask, respond with JSON: { "clarify": "<one warm sentence asking the ONE missing detail>" }
+If you have enough, respond with JSON: { "ok": true }`;
+
+async function checkClarify(prompt: string, attachments: any[], apiKey: string): Promise<string | null> {
+  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: THINK_PROMPT },
+        { role: "user", content: `Brief: "${prompt}"\nAttachments provided: ${attachments.length}` },
+      ],
+      response_format: { type: "json_object" },
+    }),
+  });
+  if (!r.ok) return null;
+  const d = await r.json();
+  try {
+    const parsed = JSON.parse(d.choices?.[0]?.message?.content || "{}");
+    return parsed.clarify || null;
+  } catch { return null; }
+}
+
+async function generateBatch(prompt: string, postLength: string, vibe: string, count: number, attachments: any[], apiKey: string): Promise<any[]> {
   const lengthGuide = {
-    short: "Keep each post under 400 characters. Punchy and provocative.",
-    medium: "Each post should be 800-1200 characters. Narrative with advice.",
-    long: "Each post should be 2000-2800 characters. Deep storytelling or comprehensive guides.",
+    short: "< 400 chars. Punchy and provocative.",
+    medium: "800–1200 chars. Narrative + advice.",
+    long: "2000–2800 chars. Deep storytelling or guides.",
   }[postLength];
 
-  const userMessage = `Create exactly ${count} LinkedIn posts based on this input: "${prompt}"
+  const userText = `Create exactly ${count} LinkedIn posts based on: "${prompt}"
 
-Vibe/Tone: ${vibe}
-Length: ${postLength} - ${lengthGuide}
+Vibes (mix freely): ${vibe}
+Length: ${postLength} — ${lengthGuide}
+${attachments.length ? `User attached ${attachments.length} pictures for context — incorporate visual themes you see.` : ""}
 
-Each post must use a DIFFERENT structural style. Include exactly 6-8 hashtags per post.
-Also suggest 3 relevant stock image search terms for each post.
+Each post = a DIFFERENT framework. Include 6–8 hashtags per post and 3 image search terms.
 
-Respond ONLY with valid JSON:
+JSON ONLY:
 {
   "posts": [
-    {
-      "type": "Framework Name",
-      "hook": "7-10 word attention grabber",
-      "body": "The main post content with proper formatting",
-      "cta": "Specific call-to-action question",
-      "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5", "#tag6"],
-      "imageSearchTerms": ["term1", "term2", "term3"]
-    }
+    { "type": "Framework", "hook": "...", "body": "...", "cta": "...", "hashtags": ["#a","#b","#c","#d","#e","#f"], "imageSearchTerms": ["t1","t2","t3"] }
   ]
 }`;
 
-  const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const userContent: any[] = [{ type: "text", text: userText }];
+  for (const a of attachments.slice(0, 3)) {
+    userContent.push({ type: "image_url", image_url: { url: a.dataUrl } });
+  }
+
+  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gpt-4o",
+      model: "google/gemini-2.5-flash",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
+        { role: "user", content: attachments.length ? userContent : userText },
       ],
+      response_format: { type: "json_object" },
     }),
   });
 
-  if (!aiResponse.ok) {
-    const errText = await aiResponse.text();
-    throw new Error(`AI gateway error [${aiResponse.status}]: ${errText}`);
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(`AI gateway [${r.status}]: ${t.slice(0, 200)}`);
   }
-
-  const aiData = await aiResponse.json();
-  const content = aiData.choices?.[0]?.message?.content;
-  if (!content) throw new Error("No content in AI response");
-
-  let jsonStr = content;
-  const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (jsonMatch) jsonStr = jsonMatch[1];
-
-  const result = JSON.parse(jsonStr.trim());
-  return result.posts || [];
+  const d = await r.json();
+  let content = d.choices?.[0]?.message?.content || "";
+  const m = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (m) content = m[1];
+  const parsed = JSON.parse(content.trim());
+  return parsed.posts || [];
 }
 
 Deno.serve(async (req) => {
@@ -108,48 +131,43 @@ Deno.serve(async (req) => {
     const parsed = InputSchema.safeParse(body);
     if (!parsed.success) {
       return new Response(JSON.stringify({ error: parsed.error.flatten().fieldErrors }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const { prompt, postLength, vibe, batchSize } = parsed.data;
-
+    const { prompt, postLength, vibe, batchSize, think, attachments } = parsed.data;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // For large batches, chunk into parallel requests of max 10
-    const CHUNK_SIZE = 10;
-    let allPosts: any[] = [];
+    if (think) {
+      const clarify = await checkClarify(prompt, attachments, LOVABLE_API_KEY);
+      if (clarify) {
+        return new Response(JSON.stringify({ clarify }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
-    if (batchSize <= CHUNK_SIZE) {
-      allPosts = await generateBatch(prompt, postLength, vibe, batchSize, LOVABLE_API_KEY);
+    // Chunk large batches in parallel
+    const CHUNK = 10;
+    let posts: any[] = [];
+    if (batchSize <= CHUNK) {
+      posts = await generateBatch(prompt, postLength, vibe, batchSize, attachments, LOVABLE_API_KEY);
     } else {
       const chunks: number[] = [];
       let remaining = batchSize;
-      while (remaining > 0) {
-        const size = Math.min(remaining, CHUNK_SIZE);
-        chunks.push(size);
-        remaining -= size;
-      }
-
-      // Run chunks in parallel (max 5 concurrent)
-      const results = await Promise.all(
-        chunks.map((size) => generateBatch(prompt, postLength, vibe, size, LOVABLE_API_KEY))
-      );
-      allPosts = results.flat();
+      while (remaining > 0) { chunks.push(Math.min(remaining, CHUNK)); remaining -= CHUNK; }
+      const results = await Promise.all(chunks.map(c => generateBatch(prompt, postLength, vibe, c, attachments, LOVABLE_API_KEY)));
+      posts = results.flat();
     }
 
-    return new Response(JSON.stringify({ posts: allPosts }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ posts }), {
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
-    console.error("Content generation error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    console.error("generate-content error:", error);
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    return new Response(JSON.stringify({ error: msg }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

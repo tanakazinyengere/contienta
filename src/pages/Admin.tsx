@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { ArrowUp, ArrowDown, Users, Crown, FileText, MessageSquare, Activity, TrendingUp } from "lucide-react";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,13 +10,20 @@ import { toast } from "sonner";
 
 const GOD_MODE_EMAIL = "tanakazinyengere2@gmail.com";
 
+interface Trend { value: number; previous: number; delta: number; }
+interface Metrics {
+  users: number; premium: number; saved: number; conversionRate: number;
+  signups7d: Trend; posts7d: Trend; chats7d: Trend; waitlist: number;
+}
+interface ActivityItem { kind: "signup" | "save" | "chat" | "schedule"; at: string; label: string; }
+
 const Admin = () => {
   const profile = useUserProfile();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [metrics, setMetrics] = useState({ users: 0, premium: 0, saved: 0, donations: 0, conversionRate: 0 });
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [grantEmail, setGrantEmail] = useState("");
-  const [grantDuration, setGrantDuration] = useState<"5h" | "10h" | "24h" | "permanent">("permanent");
   const [paymentLinks, setPaymentLinks] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -24,13 +32,61 @@ const Admin = () => {
   const fetchMetrics = async () => {
     setLoading(true);
     try {
-      const [{ count: users }, { count: premium }, { count: saved }] = await Promise.all([
+      const now = new Date();
+      const sevenAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const fourteenAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+      const [
+        { count: users },
+        { count: premium },
+        { count: saved },
+        { count: signups7 },
+        { count: signupsPrev },
+        { count: posts7 },
+        { count: postsPrev },
+        { count: chats7 },
+        { count: chatsPrev },
+        { count: waitlist },
+        { data: recentSignups },
+        { data: recentSaves },
+        { data: recentChats },
+      ] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("is_pro", true),
         supabase.from("saved_posts").select("id", { count: "exact", head: true }),
+        supabase.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", sevenAgo),
+        supabase.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", fourteenAgo).lt("created_at", sevenAgo),
+        supabase.from("saved_posts").select("id", { count: "exact", head: true }).gte("created_at", sevenAgo),
+        supabase.from("saved_posts").select("id", { count: "exact", head: true }).gte("created_at", fourteenAgo).lt("created_at", sevenAgo),
+        supabase.from("chat_messages").select("id", { count: "exact", head: true }).gte("created_at", sevenAgo),
+        supabase.from("chat_messages").select("id", { count: "exact", head: true }).gte("created_at", fourteenAgo).lt("created_at", sevenAgo),
+        supabase.from("pro_waitlist").select("id", { count: "exact", head: true }),
+        supabase.from("profiles").select("display_name, created_at").order("created_at", { ascending: false }).limit(5),
+        supabase.from("saved_posts").select("hook, created_at").order("created_at", { ascending: false }).limit(5),
+        supabase.from("chat_messages").select("content, created_at").order("created_at", { ascending: false }).limit(5),
       ]);
-      const conversionRate = users > 0 ? Math.round((premium / users) * 100) : 0;
-      setMetrics({ users: users ?? 0, premium: premium ?? 0, saved: saved ?? 0, donations: 0, conversionRate });
+
+      const trend = (curr: number, prev: number): Trend => ({
+        value: curr ?? 0,
+        previous: prev ?? 0,
+        delta: prev > 0 ? Math.round(((curr - prev) / prev) * 100) : (curr > 0 ? 100 : 0),
+      });
+      const conversionRate = (users ?? 0) > 0 ? Math.round(((premium ?? 0) / (users ?? 1)) * 100) : 0;
+
+      setMetrics({
+        users: users ?? 0, premium: premium ?? 0, saved: saved ?? 0, conversionRate,
+        signups7d: trend(signups7 ?? 0, signupsPrev ?? 0),
+        posts7d: trend(posts7 ?? 0, postsPrev ?? 0),
+        chats7d: trend(chats7 ?? 0, chatsPrev ?? 0),
+        waitlist: waitlist ?? 0,
+      });
+
+      const items: ActivityItem[] = [];
+      (recentSignups || []).forEach(r => items.push({ kind: "signup", at: r.created_at, label: `${r.display_name || "New user"} joined` }));
+      (recentSaves || []).forEach(r => items.push({ kind: "save", at: r.created_at, label: `Saved post: "${(r.hook || "").slice(0, 50)}"` }));
+      (recentChats || []).forEach(r => items.push({ kind: "chat", at: r.created_at, label: `Clippie chat: "${(r.content || "").slice(0, 50)}"` }));
+      items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+      setActivity(items.slice(0, 10));
     } catch (error) {
       console.error(error);
       toast.error("Failed to load admin metrics");
@@ -41,18 +97,10 @@ const Admin = () => {
 
   useEffect(() => {
     if (isAdmin) fetchMetrics();
-
     const saved = localStorage.getItem("clippedin-payment-links");
-    const defaults = pricingPlans.reduce((acc, plan) => {
-      acc[plan.name] = plan.checkoutUrl || "";
-      return acc;
-    }, {} as Record<string, string>);
+    const defaults = pricingPlans.reduce((acc, plan) => { acc[plan.name] = plan.checkoutUrl || ""; return acc; }, {} as Record<string, string>);
     setPaymentLinks(saved ? JSON.parse(saved) : defaults);
   }, [isAdmin]);
-
-  const updatePaymentLink = (planName: string, url: string) => {
-    setPaymentLinks((prev) => ({ ...prev, [planName]: url }));
-  };
 
   const handleSavePaymentLinks = () => {
     localStorage.setItem("clippedin-payment-links", JSON.stringify(paymentLinks));
@@ -60,28 +108,12 @@ const Admin = () => {
   };
 
   const handleGrantPremium = async () => {
-    if (!grantEmail.trim()) {
-      toast.error("Enter an email to grant premium access.");
-      return;
-    }
+    if (!grantEmail.trim()) { toast.error("Enter a user display name to search."); return; }
     setSaving(true);
     try {
-      // Look up user_id from display_name match (email column not exposed); fallback: requires admin to know user id.
-      // Simpler approach: update by display_name if matches; otherwise toast a friendly notice.
-      const { data: matches, error: lookupError } = await supabase
-        .from("profiles")
-        .select("user_id, display_name")
-        .ilike("display_name", `%${grantEmail.trim()}%`)
-        .limit(1);
-      if (lookupError) throw lookupError;
-      if (!matches || matches.length === 0) {
-        toast.error("No matching user found. Try the user's display name.");
-        return;
-      }
-      const { error } = await supabase
-        .from("profiles")
-        .update({ is_pro: true })
-        .eq("user_id", matches[0].user_id);
+      const { data: matches } = await supabase.from("profiles").select("user_id, display_name").ilike("display_name", `%${grantEmail.trim()}%`).limit(1);
+      if (!matches || matches.length === 0) { toast.error("No matching user found."); return; }
+      const { error } = await supabase.from("profiles").update({ is_pro: true }).eq("user_id", matches[0].user_id);
       if (error) throw error;
       toast.success("Pro access granted.");
       setGrantEmail("");
@@ -89,138 +121,131 @@ const Admin = () => {
     } catch (err) {
       console.error(err);
       toast.error("Failed to grant Pro");
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
-  if (!profile.isLoggedIn) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4 py-8">
-        <div className="glass rounded-3xl p-8 max-w-xl text-center">
-          <h1 className="text-2xl font-bold text-foreground">Admin console</h1>
-          <p className="mt-4 text-sm text-muted-foreground">Please sign in with the admin email to access premium controls.</p>
-          <div className="mt-6">
-            <Button onClick={() => navigate("/login")} className="rounded-2xl bg-primary hover:bg-primary/90">
-              Sign in
-            </Button>
-          </div>
-        </div>
+  if (!profile.isLoggedIn) return (
+    <div className="min-h-screen flex items-center justify-center px-4 py-8">
+      <div className="glass rounded-3xl p-8 max-w-xl text-center">
+        <h1 className="text-2xl font-bold text-foreground">Admin console</h1>
+        <p className="mt-4 text-sm text-muted-foreground">Sign in with the admin email to access.</p>
+        <Button onClick={() => navigate("/login")} className="mt-6 rounded-2xl bg-primary hover:bg-primary/90">Sign in</Button>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4 py-8">
-        <div className="glass rounded-3xl p-8 max-w-xl text-center">
-          <h1 className="text-2xl font-bold text-foreground">Unauthorized</h1>
-          <p className="mt-4 text-sm text-muted-foreground">
-            You do not have access to the ClippedIn admin dashboard.
-          </p>
-          <div className="mt-6">
-            <Button onClick={() => navigate("/")} className="rounded-2xl bg-primary hover:bg-primary/90">
-              Return home
-            </Button>
-          </div>
-        </div>
+  if (!isAdmin) return (
+    <div className="min-h-screen flex items-center justify-center px-4 py-8">
+      <div className="glass rounded-3xl p-8 max-w-xl text-center">
+        <h1 className="text-2xl font-bold text-foreground">Unauthorized</h1>
+        <Button onClick={() => navigate("/")} className="mt-6 rounded-2xl bg-primary hover:bg-primary/90">Return home</Button>
       </div>
-    );
-  }
+    </div>
+  );
+
+  const TrendTile = ({ icon, label, trend }: { icon: React.ReactNode; label: string; trend: Trend }) => (
+    <div className="glass rounded-3xl p-5 space-y-2 border border-border">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">{label}</p>
+        <span className="text-primary">{icon}</span>
+      </div>
+      <p className="text-3xl font-bold text-foreground">{loading ? "…" : trend.value}</p>
+      <div className={`flex items-center gap-1 text-[11px] ${trend.delta >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+        {trend.delta >= 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+        {Math.abs(trend.delta)}% vs prior 7 days
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background px-4 py-10">
       <div className="max-w-5xl mx-auto space-y-8">
-        <div className="glass rounded-3xl border border-border p-8 shadow-xl">
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+        <div className="glass rounded-3xl border border-border p-6 sm:p-8 shadow-xl">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
             <h1 className="text-3xl font-extrabold font-display text-foreground">Admin Control</h1>
-            <p className="text-sm text-muted-foreground">
-              Manual premium sync, user metrics, and credit override controls for the ClippedIn authority platform.
-            </p>
+            <p className="text-sm text-muted-foreground">Real-time metrics, premium overrides, and operational tools.</p>
           </motion.div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
             <div className="glass rounded-3xl p-5 space-y-2 border border-border">
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Total users</p>
-              <p className="text-3xl font-bold text-foreground">{loading ? "..." : metrics.users}</p>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Total users</p>
+              <p className="text-3xl font-bold text-foreground">{loading ? "…" : metrics?.users}</p>
             </div>
             <div className="glass rounded-3xl p-5 space-y-2 border border-border">
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Premium activations</p>
-              <p className="text-3xl font-bold text-foreground">{loading ? "..." : metrics.premium}</p>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Premium</p>
+              <p className="text-3xl font-bold text-foreground">{loading ? "…" : metrics?.premium}</p>
             </div>
             <div className="glass rounded-3xl p-5 space-y-2 border border-border">
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Conversion rate</p>
-              <p className="text-3xl font-bold text-foreground">{loading ? "..." : `${metrics.conversionRate}%`}</p>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Conversion</p>
+              <p className="text-3xl font-bold text-foreground">{loading ? "…" : `${metrics?.conversionRate}%`}</p>
             </div>
             <div className="glass rounded-3xl p-5 space-y-2 border border-border">
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Saved narratives</p>
-              <p className="text-3xl font-bold text-foreground">{loading ? "..." : metrics.saved}</p>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Waitlist</p>
+              <p className="text-3xl font-bold text-foreground">{loading ? "…" : metrics?.waitlist}</p>
             </div>
           </div>
 
-          <div className="mt-10 glass rounded-3xl border border-border p-6">
-            <h2 className="text-lg font-bold text-foreground">Authorize Premium Access</h2>
-            <p className="text-sm text-muted-foreground">Grant premium status to users for testing, support, or manual activation.</p>
-            <div className="mt-4 space-y-4">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  value={grantEmail}
-                  onChange={(e) => setGrantEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  className="flex-1 rounded-2xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <select
-                  value={grantDuration}
-                  onChange={(e) => setGrantDuration(e.target.value as any)}
-                  className="rounded-2xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="5h">5 Hours</option>
-                  <option value="10h">10 Hours</option>
-                  <option value="24h">24 Hours</option>
-                  <option value="permanent">Permanent</option>
-                </select>
-                <Button onClick={handleGrantPremium} disabled={saving} className="rounded-2xl bg-primary hover:bg-primary/90">
-                  {saving ? "Granting..." : "Grant Access"}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Note: Duration-based access requires additional backend implementation. Currently grants permanent access.
-              </p>
-            </div>
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {metrics && <>
+              <TrendTile icon={<Users className="w-4 h-4" />} label="Signups · 7d" trend={metrics.signups7d} />
+              <TrendTile icon={<FileText className="w-4 h-4" />} label="Saved posts · 7d" trend={metrics.posts7d} />
+              <TrendTile icon={<MessageSquare className="w-4 h-4" />} label="Clippie chats · 7d" trend={metrics.chats7d} />
+            </>}
           </div>
 
-          <div className="mt-8 glass rounded-3xl border border-border p-6">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div>
-                <h2 className="text-lg font-bold text-foreground">Payment Link Management</h2>
-                <p className="text-sm text-muted-foreground">Update the Revolut checkout URLs used by your paid tiers in GodMode.</p>
-              </div>
-              <Button onClick={handleSavePaymentLinks} className="rounded-2xl bg-primary hover:bg-primary/90">
-                Save links
+          {/* Latest activity */}
+          <div className="mt-8 glass rounded-3xl border border-border p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Activity className="w-4 h-4 text-primary" />
+              <h2 className="text-base font-bold text-foreground">Latest activity</h2>
+            </div>
+            {activity.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No recent activity yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {activity.map((a, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs">
+                    <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${a.kind === "signup" ? "bg-emerald-400" : a.kind === "save" ? "bg-primary" : a.kind === "chat" ? "bg-accent" : "bg-muted-foreground"}`} />
+                    <span className="text-foreground flex-1">{a.label}</span>
+                    <span className="text-muted-foreground">{new Date(a.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="mt-6 glass rounded-3xl border border-border p-5">
+            <h2 className="text-base font-bold text-foreground">Grant Premium Access</h2>
+            <p className="text-xs text-muted-foreground">Search by display name and grant Pro instantly.</p>
+            <div className="mt-3 flex flex-col sm:flex-row gap-2">
+              <input
+                value={grantEmail} onChange={e => setGrantEmail(e.target.value)}
+                placeholder="Display name fragment"
+                className="flex-1 rounded-2xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <Button onClick={handleGrantPremium} disabled={saving} className="rounded-2xl bg-primary hover:bg-primary/90">
+                {saving ? "Granting…" : "Grant Pro"}
               </Button>
             </div>
-            <div className="space-y-5">
-              {pricingPlans.filter((plan) => plan.name !== "BASIC").map((plan) => (
-                <div key={plan.name} className="space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-foreground">{plan.displayName}</p>
-                      <p className="text-xs text-muted-foreground">{plan.price} • {plan.description}</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(paymentLinks[plan.name] || plan.checkoutUrl, "_blank")}
-                      className="rounded-2xl"
-                    >
-                      Open link
-                    </Button>
-                  </div>
+          </div>
+
+          <div className="mt-6 glass rounded-3xl border border-border p-5">
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <div>
+                <h2 className="text-base font-bold text-foreground">Payment links</h2>
+                <p className="text-xs text-muted-foreground">Update checkout URLs per tier.</p>
+              </div>
+              <Button onClick={handleSavePaymentLinks} className="rounded-2xl bg-primary hover:bg-primary/90">Save links</Button>
+            </div>
+            <div className="space-y-3">
+              {pricingPlans.filter(plan => plan.name !== "BASIC").map(plan => (
+                <div key={plan.name} className="space-y-1">
+                  <p className="text-xs font-semibold text-foreground">{plan.displayName} <span className="text-muted-foreground font-normal">· {plan.price}</span></p>
                   <input
                     value={paymentLinks[plan.name] || ""}
-                    onChange={(e) => updatePaymentLink(plan.name, e.target.value)}
-                    placeholder="Revolut checkout link"
-                    className="w-full rounded-2xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    onChange={e => setPaymentLinks(prev => ({ ...prev, [plan.name]: e.target.value }))}
+                    placeholder="Checkout URL"
+                    className="w-full rounded-2xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               ))}

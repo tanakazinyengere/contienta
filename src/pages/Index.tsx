@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import BottomNav, { type AppTabId } from "@/components/BottomNav";
@@ -15,6 +14,12 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
+// All tabs stay mounted; we toggle visibility so background work
+// (Clippie streams, Batch generations, Reef saves) keeps running on tab switch.
+const TabPane = ({ active, children }: { active: boolean; children: React.ReactNode }) => (
+  <div className={active ? "flex-1" : "hidden"} aria-hidden={!active}>{children}</div>
+);
+
 const Index = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AppTabId>("profile");
@@ -26,9 +31,7 @@ const Index = () => {
   const prevIsPro = useRef<boolean>(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
     supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
     return () => subscription.unsubscribe();
   }, []);
@@ -36,7 +39,7 @@ const Index = () => {
   useEffect(() => {
     if (prevIsPro.current === false && userProfile.isPro === true) {
       confetti({ particleCount: 120, spread: 90, origin: { y: 0.6 } });
-      toast.success("Premium Activated. All features unlocked.");
+      toast.success("Premium activated. All features unlocked.");
     }
     prevIsPro.current = userProfile.isPro;
   }, [userProfile.isPro]);
@@ -72,47 +75,36 @@ const Index = () => {
             onClick={() => navigate("/admin")}
             className="text-[10px] uppercase tracking-wider px-3 py-1 rounded-full bg-accent text-accent-foreground font-bold press-effect"
           >
-            ⚡ God Mode — Open Admin
+            God Mode — Open Admin
           </button>
         </div>
       )}
 
-      <AnimatePresence mode="wait">
-        {activeTab === "profile" && (
-          <motion.div key="profile" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="flex-1">
-            <ProfileTester />
-          </motion.div>
+      {isGenerating && activeTab !== "engine" && (
+        <div className="fixed top-16 right-4 z-30 glass rounded-full px-3 py-1.5 text-[11px] text-foreground flex items-center gap-1.5 shadow-lg">
+          <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+          Batch generating…
+        </div>
+      )}
+
+      <TabPane active={activeTab === "profile"}><ProfileTester /></TabPane>
+      <TabPane active={activeTab === "reef"}><Reef /></TabPane>
+      <TabPane active={activeTab === "engine"}>
+        <ContentEngine
+          onCardsGenerated={handleCardsGenerated}
+          isGenerating={isGenerating}
+          setIsGenerating={setIsGenerating}
+          hasCards={cards.length > 0}
+          isPro={userProfile.isPro}
+        />
+        {cards.length > 0 && (
+          <ClipCanvas cards={cards} selectedImage={selectedImage} onRegenerate={handleRegenerate} onUpdateCard={handleUpdateCard} onClear={handleClearCards} isPro={userProfile.isPro} />
         )}
-        {activeTab === "reef" && (
-          <motion.div key="reef" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="flex-1">
-            <Reef />
-          </motion.div>
-        )}
-        {activeTab === "engine" && (
-          <motion.div key="engine" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="flex-1">
-            <ContentEngine
-              onCardsGenerated={handleCardsGenerated}
-              isGenerating={isGenerating}
-              setIsGenerating={setIsGenerating}
-              hasCards={cards.length > 0}
-              isPro={userProfile.isPro}
-            />
-            {cards.length > 0 && (
-              <ClipCanvas cards={cards} selectedImage={selectedImage} onRegenerate={handleRegenerate} onUpdateCard={handleUpdateCard} onClear={handleClearCards} isPro={userProfile.isPro} />
-            )}
-          </motion.div>
-        )}
-        {activeTab === "clippie" && (
-          <motion.div key="clippie" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="flex-1 px-3 py-4">
-            <Clippie />
-          </motion.div>
-        )}
-        {activeTab === "dashboard" && (
-          <motion.div key="dashboard" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="flex-1">
-            <Dashboard />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </TabPane>
+      <TabPane active={activeTab === "clippie"}>
+        <div className="px-3 py-4"><Clippie /></div>
+      </TabPane>
+      <TabPane active={activeTab === "dashboard"}><Dashboard /></TabPane>
 
       <BottomNav active={activeTab} onChange={handleTabChange} />
     </div>
