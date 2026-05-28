@@ -601,9 +601,8 @@ const Landing = () => {
         </motion.div>
       </section>
       <Footer />
-
-      </footer>
     </div>
+
   );
 };
 
