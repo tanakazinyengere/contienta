@@ -280,8 +280,9 @@ const Landing = () => {
             className="space-y-6"
           >
             <p className="text-fluid-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              ClippedIn reads your real LinkedIn SSI, writes posts in your voice, and helps you schedule them — all in one place.
+              Read your real LinkedIn SSI, draft posts in your voice, and schedule them — all from one calm workspace.
             </p>
+
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
               <Button
                 size="lg"
