@@ -4,6 +4,8 @@ import { Sparkles, TrendingUp, Zap, Shield, ArrowRight, ChevronRight, Users, Bar
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
 import { pricingPlans } from "@/lib/pricingPlans";
+import Footer from "@/components/Footer";
+
 
 
 const features = [
@@ -280,8 +282,9 @@ const Landing = () => {
             className="space-y-6"
           >
             <p className="text-fluid-base text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              ClippedIn reads your real LinkedIn SSI, writes posts in your voice, and helps you schedule them — all in one place.
+              Read your real LinkedIn SSI, draft posts in your voice, and schedule them — all from one calm workspace.
             </p>
+
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
               <Button
                 size="lg"
@@ -599,25 +602,9 @@ const Landing = () => {
           </div>
         </motion.div>
       </section>
-
-      {/* Footer */}
-      <footer className="border-t border-border px-4 sm:px-8 py-8">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-display font-bold text-xs">C.</span>
-            </div>
-            <span>© {new Date().getFullYear()} ClippedIn. All rights reserved.</span>
-          </div>
-          <div className="flex items-center gap-4 flex-wrap justify-center">
-            <button onClick={() => navigate("/about")} className="hover:text-foreground transition-colors">About</button>
-            <button onClick={() => navigate("/faqs")} className="hover:text-foreground transition-colors">FAQs</button>
-            <button onClick={() => navigate("/contact")} className="hover:text-foreground transition-colors">Contact</button>
-            <button onClick={() => navigate("/pricing")} className="hover:text-foreground transition-colors">Pricing</button>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
+
   );
 };
 
