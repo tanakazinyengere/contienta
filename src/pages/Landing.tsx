@@ -600,23 +600,8 @@ const Landing = () => {
           </div>
         </motion.div>
       </section>
+      <Footer />
 
-      {/* Footer */}
-      <footer className="border-t border-border px-4 sm:px-8 py-8">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-display font-bold text-xs">C.</span>
-            </div>
-            <span>© {new Date().getFullYear()} ClippedIn. All rights reserved.</span>
-          </div>
-          <div className="flex items-center gap-4 flex-wrap justify-center">
-            <button onClick={() => navigate("/about")} className="hover:text-foreground transition-colors">About</button>
-            <button onClick={() => navigate("/faqs")} className="hover:text-foreground transition-colors">FAQs</button>
-            <button onClick={() => navigate("/contact")} className="hover:text-foreground transition-colors">Contact</button>
-            <button onClick={() => navigate("/pricing")} className="hover:text-foreground transition-colors">Pricing</button>
-          </div>
-        </div>
       </footer>
     </div>
   );
