@@ -4,6 +4,8 @@ import { Sparkles, TrendingUp, Zap, Shield, ArrowRight, ChevronRight, Users, Bar
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
 import { pricingPlans } from "@/lib/pricingPlans";
+import Footer from "@/components/Footer";
+
 
 
 const features = [
