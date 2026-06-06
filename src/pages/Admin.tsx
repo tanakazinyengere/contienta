@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { pricingPlans } from "@/lib/pricingPlans";
 import { toast } from "sonner";
+import NoIndex from "@/components/NoIndex";
 
 const GOD_MODE_EMAIL = "tanakazinyengere2@gmail.com";
 
@@ -125,7 +126,7 @@ const Admin = () => {
   };
 
   if (!profile.isLoggedIn) return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center px-4 py-8"><NoIndex />
       <div className="glass rounded-3xl p-8 max-w-xl text-center">
         <h1 className="text-2xl font-bold text-foreground">Admin console</h1>
         <p className="mt-4 text-sm text-muted-foreground">Sign in with the admin email to access.</p>
@@ -135,7 +136,7 @@ const Admin = () => {
   );
 
   if (!isAdmin) return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center px-4 py-8"><NoIndex />
       <div className="glass rounded-3xl p-8 max-w-xl text-center">
         <h1 className="text-2xl font-bold text-foreground">Unauthorized</h1>
         <Button onClick={() => navigate("/")} className="mt-6 rounded-2xl bg-primary hover:bg-primary/90">Return home</Button>
@@ -158,7 +159,7 @@ const Admin = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background px-4 py-10">
+    <div className="min-h-screen bg-background px-4 py-10"><NoIndex />
       <div className="max-w-5xl mx-auto space-y-8">
         <div className="glass rounded-3xl border border-border p-6 sm:p-8 shadow-xl">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">

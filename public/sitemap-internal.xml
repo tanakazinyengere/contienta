@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Internal/auth-gated routes. NOT linked from robots.txt. Pages serve <meta name="robots" content="noindex"> at runtime. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://clippedin.lovable.app/app</loc>
+  </url>
+  <url>
+    <loc>https://clippedin.lovable.app/onboarding</loc>
+  </url>
+  <url>
+    <loc>https://clippedin.lovable.app/admin</loc>
+  </url>
+</urlset>

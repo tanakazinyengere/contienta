@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import NoIndex from "@/components/NoIndex";
 import Header from "@/components/Header";
 import BottomNav, { type AppTabId } from "@/components/BottomNav";
 import ContentEngine from "@/components/ContentEngine";
@@ -67,6 +68,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden pb-20">
+      <NoIndex />
       <Header user={user} onSignOut={handleSignOut} onLogin={() => navigate("/login")} />
 
       {userProfile.isGodMode && (

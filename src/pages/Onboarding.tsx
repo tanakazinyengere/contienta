@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Linkedin, ArrowRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import NoIndex from "@/components/NoIndex";
 
 const steps = [
   "Analyzing headline...",
@@ -63,6 +64,7 @@ const Onboarding = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-4 py-8">
+      <NoIndex />
       <div className="w-full max-w-3xl space-y-8">
         <div className="glass rounded-3xl p-8 border border-border shadow-xl">
           <div className="flex flex-col gap-4 text-center">
