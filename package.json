@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "tsx scripts/generate-sitemap.ts",
+    "prebuild": "tsx scripts/generate-sitemap.ts",
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
@@ -11,7 +13,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "validate:sitemap": "tsx scripts/validate-sitemap.ts",
+    "ci": "npm run validate:sitemap && npm run lint && npm run test"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
