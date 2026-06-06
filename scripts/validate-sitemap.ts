@@ -8,9 +8,9 @@ import { publicRoutes, authRoutes } from "../src/lib/routeManifest";
 const xml = readFileSync(resolve("public/sitemap.xml"), "utf8");
 const robots = readFileSync(resolve("public/robots.txt"), "utf8");
 
-const locs = Array.from(xml.matchAll(/<loc>[^<]*?(\/[^<]*?)<\/loc>/g)).map((m) =>
-  m[1].replace(/\/$/, "") || "/"
-);
+const locs = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/g)).map((m) => {
+  try { return new URL(m[1]).pathname.replace(/\/$/, "") || "/"; } catch { return m[1]; }
+});
 const expected = publicRoutes.map((r) => r.path);
 
 const missing = expected.filter((p) => !locs.includes(p));
