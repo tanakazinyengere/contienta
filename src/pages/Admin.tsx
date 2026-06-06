@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { pricingPlans } from "@/lib/pricingPlans";
 import { toast } from "sonner";
+import NoIndex from "@/components/NoIndex";
 
 const GOD_MODE_EMAIL = "tanakazinyengere2@gmail.com";
 
