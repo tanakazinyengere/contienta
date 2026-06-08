@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render } from "@testing-library/react";
+const waitFor = async (fn: () => void) => { for (let i = 0; i < 20; i++) { try { fn(); return; } catch { await new Promise(r => setTimeout(r, 25)); } } fn(); };
 import { HelmetProvider } from "react-helmet-async";
 import NoIndex from "@/components/NoIndex";
 import { isAuthGatedPath, authRoutes, publicRoutes } from "@/lib/routeManifest";
