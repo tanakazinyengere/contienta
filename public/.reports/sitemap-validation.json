@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-08T14:28:56.859Z",
+  "counts": {
+    "public_expected": 12,
+    "public_in_sitemap": 12,
+    "auth_disallow_prefixes": 5,
+    "mismatches": 0
+  },
+  "mismatches": []
+}

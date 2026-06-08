@@ -73,6 +73,39 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          link: string | null
+          read_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pro_waitlist: {
         Row: {
           created_at: string
@@ -313,6 +346,54 @@ export type Database = {
           profile_handle?: string
           profile_url?: string
           result_data?: Json
+        }
+        Relationships: []
+      }
+      user_credits: {
+        Row: {
+          bonus_remaining: number
+          created_at: string
+          daily_remaining: number
+          daily_reset_at: string
+          id: string
+          last_active_date: string | null
+          monthly_remaining: number
+          monthly_reset_at: string
+          streak_count: number
+          tier: string
+          unlimited_until: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bonus_remaining?: number
+          created_at?: string
+          daily_remaining?: number
+          daily_reset_at?: string
+          id?: string
+          last_active_date?: string | null
+          monthly_remaining?: number
+          monthly_reset_at?: string
+          streak_count?: number
+          tier?: string
+          unlimited_until?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bonus_remaining?: number
+          created_at?: string
+          daily_remaining?: number
+          daily_reset_at?: string
+          id?: string
+          last_active_date?: string | null
+          monthly_remaining?: number
+          monthly_reset_at?: string
+          streak_count?: number
+          tier?: string
+          unlimited_until?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
