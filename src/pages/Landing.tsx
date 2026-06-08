@@ -314,39 +314,14 @@ const Landing = () => {
 
       <section className="px-4 sm:px-8 py-10">
         <div className="max-w-6xl mx-auto">
-          <div className="rounded-3xl border border-border bg-background/80 p-6 shadow-xl glass">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                {
-                  name: "Executive Coach",
-                  image: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=300&q=80"
-                },
-                {
-                  name: "Brand Leader",
-                  image: "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=300&q=80"
-                },
-                {
-                  name: "Industry Analyst",
-                  image: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80"
-                },
-                {
-                  name: "Corporate Founder",
-                  image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80"
-                }
-              ].map((person) => (
-                <div key={person.name} className="rounded-3xl overflow-hidden border border-border bg-white/80 dark:bg-slate-900/90">
-                  <img src={person.image} alt={person.name} className="h-40 w-full object-cover" />
-                  <div className="px-4 py-3">
-                    <p className="text-sm font-semibold text-foreground">{person.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Trusted ClippedIn to publish more confidently.</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="mt-6 text-center text-sm text-muted-foreground">Trusted by senior leaders, brand strategists, and revenue teams who need polished LinkedIn content at scale.</p>
+          <div className="rounded-3xl border border-border bg-background/80 p-8 shadow-xl glass text-center">
+            <p className="text-xs uppercase tracking-[0.34em] text-muted-foreground">Built for</p>
+            <h3 className="mt-3 text-fluid-xl font-extrabold font-display text-foreground">Operators, founders & advisors who post with intent</h3>
+            <p className="mt-3 text-sm text-muted-foreground max-w-2xl mx-auto">ClippedIn reads your real LinkedIn SSI, then helps you draft posts in your own voice and schedule them — without spending all day in the feed.</p>
           </div>
         </div>
       </section>
+
 
       {/* Market Insights Stats */}
       <section className="px-4 sm:px-8 py-16 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800">
