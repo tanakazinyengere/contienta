@@ -2,6 +2,7 @@ import { LogOut, User, LogIn, Heart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "./ThemeToggle";
+import NotificationBell from "./NotificationBell";
 
 interface HeaderProps {
   user?: any;
@@ -39,6 +40,7 @@ const Header = ({ user, onSignOut, onLogin }: HeaderProps) => {
         >
           <Heart className="w-4 h-4" />
         </button>
+        {user && <NotificationBell />}
         {user ? (
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-xs">

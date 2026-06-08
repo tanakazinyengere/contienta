@@ -25,57 +25,66 @@ interface Plan {
   liveLink?: string; // Revolut subscription link if available
 }
 
-// Prices per Payment SPECS v16.0 (EUR). Live Revolut links wired where available.
+// Prices per Payment SPECS v25.0 (EUR). Stripe for credits + subscriptions; Revolut donations only.
 const PLANS: Plan[] = [
   { key: "free", name: "Free", monthly: 0, yearly: 0, description: "Get started with the essentials.",
     features: ["50 credits / month", "10 daily credits · 5 active days", "1 workspace", "Basic SSI analysis"],
     cta: "Current plan", audience: "individual" },
   { key: "premium", name: "Premium", monthly: 9.99, yearly: 95.00, description: "For rising professionals.", trial: 7,
     features: ["150 credits / month", "15 daily credits · 10 active days", "Up to 2 workspaces", "Full SSI audit", "7-day free trial"],
-    cta: "Upgrade", audience: "individual",
-    liveLink: "https://checkout.revolut.com/pay/cbba696a-b4cb-4e9e-8801-19de36ea961e" },
+    cta: "Upgrade", audience: "individual" },
   { key: "plus", name: "Plus", monthly: 16.00, yearly: 160.00, description: "For high-velocity creators.",
-    features: ["300 credits / month", "20 daily credits · 15 active days", "Up to 5 workspaces", "Reef scheduling", "Custom domain"],
+    features: ["300 credits / month", "20 daily credits · 15 active days", "Up to 5 workspaces", "Reef scheduling", "Custom domain", "First month free"],
     cta: "Upgrade", audience: "individual" },
   { key: "teams", name: "Teams", monthly: 52.00, yearly: 520.00, description: "For small teams.", trial: 20,
     features: ["500 credits / month", "25 daily credits · 20 active days", "Unlimited workspaces", "Priority support", "20-day free trial"],
-    cta: "Contact sales", audience: "business" },
+    cta: "Upgrade", audience: "business" },
   { key: "enterprise", name: "Enterprise", monthly: 90.00, yearly: 890.00, description: "For high-stakes brands.",
     features: ["Unlimited credits", "25 active days / month", "Unlimited members", "Predictive analytics", "Dedicated admin support"],
-    cta: "Contact sales", audience: "business", popular: true },
+    cta: "Upgrade", audience: "business", popular: true },
 ];
 
 const TOKEN_PACKS = [
-  { credits: 5, price: 0.99, link: "https://checkout.revolut.com/pay/e3f988f8-f93c-43cc-9dd0-a4ac578fa115" },
-  { credits: 15, price: 2.49, link: "https://checkout.revolut.com/pay/830ef27e-6c90-4310-aa49-f68e8876abc0" },
-  { credits: 35, price: 4.99, link: "https://checkout.revolut.com/pay/62f721c9-8c10-4c6f-91d5-d4c250184e3c" },
-  { credits: 80, price: 9.99, link: "https://checkout.revolut.com/pay/052991a2-f8a9-4651-a684-10ebac8f1798" },
-  { credits: "Unlimited · 3 months", price: 69.00, link: "https://checkout.revolut.com/pay/39bac34e-8dc6-43c7-966e-56c755cf6877" },
+  { credits: 5, price: 0.99, product: "credit_5" },
+  { credits: 15, price: 2.49, product: "credit_15" },
+  { credits: 35, price: 4.99, product: "credit_35" },
+  { credits: 80, price: 9.99, product: "credit_80" },
+  { credits: "Unlimited · 3 months", price: 69.00, product: "credit_unlimited" },
 ];
 
 const DONATION_LINK = "https://checkout.revolut.com/pay/6000dfb4-0ad8-4eb3-b430-e312c15701d7";
-const COMING_SOON = "Subscription checkout is being finalized — top-ups and Premium are live via Revolut.";
 const fmt = (n: number) => n === 0 ? "€0" : `€${n.toFixed(2)}`;
 
-const Pricing = () => {
-  const navigate = useNavigate();
-  const [billing, setBilling] = useState<Billing>(() => (localStorage.getItem("pricing-billing") as Billing) || "monthly");
-  const [audience, setAudience] = useState<Audience>(() => (localStorage.getItem("pricing-audience") as Audience) || "individual");
+const planProduct = (key: string, billing: Billing): string | null => {
+  if (key === "free") return null;
+  return `${key}_${billing}`;
+};
 
-  useEffect(() => { localStorage.setItem("pricing-billing", billing); }, [billing]);
-  useEffect(() => { localStorage.setItem("pricing-audience", audience); }, [audience]);
+async function startCheckout(product: string) {
+  try {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user } } = await supabase.auth.getUser();
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({
+        product,
+        email: user?.email,
+        returnUrl: `${window.location.origin}/pricing`,
+      }),
+    });
+    const data = await resp.json();
+    if (data?.url) window.location.href = data.url;
+    else toast.error(data?.error || "Could not start checkout. Stripe key may not be configured yet.");
+  } catch {
+    toast.error("Checkout failed. Try again shortly.");
+  }
+}
 
-  const visiblePlans = PLANS.filter(p => p.audience === audience);
-
-  const handleCTA = (plan: Plan) => {
-    if (plan.cta === "Current plan") { navigate("/app"); return; }
-    if (plan.cta === "Contact sales") { navigate("/contact"); return; }
-    if (plan.liveLink && billing === "monthly") {
-      window.open(plan.liveLink, "_blank", "noopener,noreferrer");
-      return;
-    }
-    toast.info(COMING_SOON);
-  };
 
   return (
     <TooltipProvider>
