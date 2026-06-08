@@ -3,5 +3,7 @@ Allow: /
 Disallow: /app
 Disallow: /onboarding
 Disallow: /admin
+Disallow: /app/
+Disallow: /admin/
 
 Sitemap: https://clippedin.lovable.app/sitemap.xml

@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Check, Sparkles, Coins, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import SEO from "@/components/SEO";
 import Footer from "@/components/Footer";
+import { supabase } from "@/integrations/supabase/client";
 
 type Billing = "monthly" | "yearly";
 type Audience = "individual" | "business";
@@ -22,7 +23,6 @@ interface Plan {
   audience: Audience;
   popular?: boolean;
   trial?: number;
-  liveLink?: string; // Revolut subscription link if available
 }
 
 // Prices per Payment SPECS v25.0 (EUR). Stripe for credits + subscriptions; Revolut donations only.
@@ -55,36 +55,67 @@ const TOKEN_PACKS = [
 const DONATION_LINK = "https://checkout.revolut.com/pay/6000dfb4-0ad8-4eb3-b430-e312c15701d7";
 const fmt = (n: number) => n === 0 ? "€0" : `€${n.toFixed(2)}`;
 
-const planProduct = (key: string, billing: Billing): string | null => {
-  if (key === "free") return null;
-  return `${key}_${billing}`;
-};
-
-async function startCheckout(product: string) {
+async function startStripeCheckout(product: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { toast.error("Please sign in to purchase."); return; }
+  const { data: { user } } = await supabase.auth.getUser();
   try {
-    const { supabase } = await import("@/integrations/supabase/client");
-    const { data: { session } } = await supabase.auth.getSession();
-    const { data: { user } } = await supabase.auth.getUser();
     const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify({
-        product,
-        email: user?.email,
-        returnUrl: `${window.location.origin}/pricing`,
-      }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ product, email: user?.email, returnUrl: `${window.location.origin}/pricing` }),
     });
     const data = await resp.json();
     if (data?.url) window.location.href = data.url;
-    else toast.error(data?.error || "Could not start checkout. Stripe key may not be configured yet.");
+    else toast.error(data?.error || "Stripe is not configured yet. Please contact support.");
   } catch {
     toast.error("Checkout failed. Try again shortly.");
   }
 }
 
+const Pricing = () => {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const [billing, setBilling] = useState<Billing>(() => (localStorage.getItem("pricing-billing") as Billing) || "monthly");
+  const [audience, setAudience] = useState<Audience>(() => (localStorage.getItem("pricing-audience") as Audience) || "individual");
+
+  useEffect(() => { localStorage.setItem("pricing-billing", billing); }, [billing]);
+  useEffect(() => { localStorage.setItem("pricing-audience", audience); }, [audience]);
+
+  // Redirect callback verification (no webhooks)
+  useEffect(() => {
+    const sid = params.get("stripe_session_id");
+    if (!sid) return;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      try {
+        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ sessionId: sid }),
+        });
+        const data = await resp.json();
+        if (data?.ok) {
+          if (data.granted?.credits) toast.success(`+${data.granted.credits} credits added`);
+          if (data.granted?.tier) toast.success(`Plan upgraded to ${data.granted.tier}`);
+        }
+      } catch {/* ignore */}
+      // Clean URL
+      const next = new URLSearchParams(params);
+      next.delete("stripe_session_id");
+      next.delete("product");
+      setParams(next, { replace: true });
+    })();
+  }, [params, setParams]);
+
+  const visiblePlans = PLANS.filter(p => p.audience === audience);
+
+  const handleCTA = (plan: Plan) => {
+    if (plan.cta === "Current plan") { navigate("/app"); return; }
+    const product = `${plan.key}_${billing}`;
+    startStripeCheckout(product);
+  };
 
   return (
     <TooltipProvider>
@@ -95,10 +126,9 @@ async function startCheckout(product: string) {
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-3">
             <h1 className="text-fluid-2xl font-extrabold font-display text-gradient">Plans &amp; Pricing</h1>
-            <p className="text-fluid-sm text-muted-foreground">Build your LinkedIn authority. All prices in EUR.</p>
+            <p className="text-fluid-sm text-muted-foreground">Build your LinkedIn authority. All prices in EUR. Secure checkout by Stripe.</p>
           </motion.div>
 
-          {/* Toggles */}
           <div className="flex flex-col items-center gap-3">
             <div className="inline-flex glass rounded-full p-1">
               {(["individual", "business"] as Audience[]).map(a => (
@@ -116,21 +146,13 @@ async function startCheckout(product: string) {
             </div>
           </div>
 
-          {/* Plan cards */}
           <div className="flex flex-wrap justify-center gap-6">
             {visiblePlans.map((plan, i) => {
               const price = billing === "monthly" ? plan.monthly : plan.yearly;
               const subPrice = billing === "yearly" && plan.yearly > 0 ? `~${fmt(plan.yearly / 12)}/mo` : null;
-              const isLive = Boolean(plan.liveLink) && billing === "monthly";
-              const ctaLabel = plan.cta === "Upgrade" ? (isLive ? "Subscribe via Revolut" : "Coming soon") : plan.cta;
               return (
-                <motion.div
-                  key={plan.key}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.06 }}
-                  className={`relative w-[320px] glass rounded-3xl p-6 flex flex-col gap-5 hover:-translate-y-1 hover:shadow-2xl transition-all ${plan.popular ? "ring-2 ring-primary/60" : ""}`}
-                >
+                <motion.div key={plan.key} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
+                  className={`relative w-[320px] glass rounded-3xl p-6 flex flex-col gap-5 hover:-translate-y-1 hover:shadow-2xl transition-all ${plan.popular ? "ring-2 ring-primary/60" : ""}`}>
                   {plan.popular && (
                     <div className="absolute -top-3 right-4 px-3 py-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1">
                       <Sparkles className="w-3 h-3" />Most popular
@@ -162,45 +184,43 @@ async function startCheckout(product: string) {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button onClick={() => handleCTA(plan)} className="w-full h-12 rounded-full font-semibold press-effect" variant={plan.popular ? "default" : "outline"}>
-                        {ctaLabel}
+                        {plan.cta === "Current plan" ? "Current plan" : "Subscribe via Stripe"}
                       </Button>
                     </TooltipTrigger>
-                    {ctaLabel === "Coming soon" && <TooltipContent>{COMING_SOON}</TooltipContent>}
+                    <TooltipContent>Secure Stripe Checkout · cancel anytime</TooltipContent>
                   </Tooltip>
                 </motion.div>
               );
             })}
           </div>
 
-          {/* Token packs */}
           <section className="space-y-4">
             <div className="text-center space-y-1">
               <h2 className="text-fluid-xl font-bold font-display flex items-center justify-center gap-2"><Coins className="w-5 h-5 text-primary" /> Top-up credits</h2>
-              <p className="text-xs text-muted-foreground">One-time purchases. Pay-as-you-go via Revolut Pro.</p>
+              <p className="text-xs text-muted-foreground">One-time purchases via Stripe.</p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-w-5xl mx-auto">
               {TOKEN_PACKS.map((pack, i) => (
-                <a key={i} href={pack.link} target="_blank" rel="noopener noreferrer"
+                <button key={i} onClick={() => startStripeCheckout(pack.product)}
                   className="glass rounded-2xl p-4 flex flex-col items-center gap-1 hover:-translate-y-0.5 hover:shadow-xl transition-all press-effect">
                   <span className="text-xs uppercase tracking-wide text-muted-foreground">Pack</span>
                   <span className="text-sm font-bold text-foreground text-center">{typeof pack.credits === "number" ? `${pack.credits} credits` : pack.credits}</span>
                   <span className="text-lg font-extrabold text-primary">{fmt(pack.price)}</span>
-                </a>
+                </button>
               ))}
             </div>
           </section>
 
-          {/* Donation */}
           <section className="text-center space-y-3 max-w-xl mx-auto">
             <h2 className="text-fluid-lg font-bold font-display flex items-center justify-center gap-2"><Heart className="w-4 h-4 text-primary" /> Support the build</h2>
-            <p className="text-xs text-muted-foreground">ClippedIn is built by an indie team. Donations keep the lights on and shape the roadmap.</p>
+            <p className="text-xs text-muted-foreground">ClippedIn is built by an indie team. Donations stay on Revolut and go straight to roadmap work.</p>
             <Button asChild variant="outline" className="rounded-full press-effect">
               <a href={DONATION_LINK} target="_blank" rel="noopener noreferrer">Donate via Revolut</a>
             </Button>
           </section>
 
           <p className="text-center text-[11px] text-muted-foreground max-w-xl mx-auto">
-            Prices follow Payment SPECS v16.0. Stripe subscriptions are being finalized — Premium is currently live via Revolut, other tiers join shortly.
+            Subscriptions and credit top-ups process securely on Stripe. Donations remain on Revolut by design. No webhooks — purchases verify on redirect.
           </p>
         </div>
         <Footer />
